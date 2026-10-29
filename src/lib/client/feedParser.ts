@@ -13,7 +13,7 @@ export interface ParsedArticle {
   content: string;
   readTime: string;
   date: string;
-  publishedAt: number;
+  publishedAt?: number;
   unread: boolean;
   saved: boolean;
   image: string;
@@ -357,7 +357,7 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
   }
 
   // Sort articles chronologically (newest first)
-  articles.sort((a, b) => b.publishedAt - a.publishedAt);
+  articles.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0));
 
   return {
     id: feedId,

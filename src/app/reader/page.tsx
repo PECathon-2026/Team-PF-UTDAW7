@@ -28,6 +28,7 @@ import {
   Loader2,
   Download,
   Upload,
+  RefreshCw,
 } from "lucide-react";
 
 import {
@@ -39,11 +40,15 @@ import { extractFullArticle } from "@/lib/client/articleExtractor";
 import {
   loadStoredSubscriptions,
   saveStoredSubscriptions,
+  removeStoredSubscription,
   loadStoredArticles,
   saveStoredArticles,
+  updateArticleState,
   StoredSubscription,
   syncAnonymousDiscoveryIfOptedIn,
 } from "@/lib/client/storage";
+import { idbUpdateArticle } from "@/lib/client/idb";
+import { refreshAllFeeds } from "@/lib/client/feedSync";
 import {
   exportToOpml,
   parseOpml,
@@ -51,22 +56,7 @@ import {
 } from "@/lib/client/opml";
 import DiscoveryView from "@/components/reader/DiscoveryView";
 
-interface Article {
-  id: string;
-  blogId: string;
-  blogName: string;
-  category: string;
-  title: string;
-  excerpt: string;
-  content: string;
-  readTime: string;
-  date: string;
-  publishedAt?: number;
-  unread: boolean;
-  saved: boolean;
-  image: string;
-  url: string;
-}
+type Article = ParsedArticle;
 
 interface Subscription {
   id: string;
@@ -275,9 +265,10 @@ export default function ReaderDashboard() {
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Loading States
+  // Loading & Sync States
   const [isAddingFeed, setIsAddingFeed] = useState(false);
   const [isExtractingArticle, setIsExtractingArticle] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
@@ -298,31 +289,41 @@ export default function ReaderDashboard() {
   // File input ref for OPML import
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Initial Load: Load local offline cache & route detection
+  // 1. Initial Load: Load local offline cache & route detection + background sync
   useEffect(() => {
-    const storedSubs = loadStoredSubscriptions(INITIAL_SUBSCRIPTIONS as any);
-    const storedArts = loadStoredArticles(INITIAL_ARTICLES as any);
+    let isMounted = true;
 
-    if (storedSubs && storedSubs.length > 0) {
+    async function initStorage() {
+      // Load cached data from IndexedDB immediately (Task E: instant load)
+      const storedSubs = await loadStoredSubscriptions(INITIAL_SUBSCRIPTIONS as any);
+      const storedArts = await loadStoredArticles(INITIAL_ARTICLES as any);
+
+      if (!isMounted) return;
       setSubscriptions(storedSubs as any);
-    }
-    if (storedArts && storedArts.length > 0) {
       setArticles(storedArts as any);
+
+      if (typeof window !== "undefined" && window.location.pathname.includes("/discover")) {
+        setActiveTab("discover");
+      }
+
+      // Background refresh feeds if online (Task E requirement)
+      if (typeof navigator !== "undefined" && navigator.onLine !== false) {
+        refreshAllFeeds(storedSubs as any, storedArts as any).then((syncRes) => {
+          if (!isMounted) return;
+          if (syncRes.newPostsCount > 0) {
+            setArticles(syncRes.updatedArticles);
+            triggerToast(`${syncRes.newPostsCount} fresh essays loaded in background`);
+          }
+        });
+      }
     }
 
-    if (typeof window !== "undefined" && window.location.pathname.includes("/discover")) {
-      setActiveTab("discover");
-    }
+    initStorage();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
-
-  // 2. Persist state updates to local cache (Task E: Offline-first)
-  useEffect(() => {
-    saveStoredSubscriptions(subscriptions as any);
-  }, [subscriptions]);
-
-  useEffect(() => {
-    saveStoredArticles(articles as any);
-  }, [articles]);
 
   // Resize Sidebar Event Listeners
   useEffect(() => {
@@ -362,31 +363,61 @@ export default function ReaderDashboard() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const markAsRead = (id: string, e?: React.MouseEvent) => {
+  // Persistent User Actions
+  const markAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: false } : a)));
+    await updateArticleState(id, { unread: false });
   };
 
-  const toggleSave = (id: string, e?: React.MouseEvent) => {
+  const toggleSave = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    let nextState = false;
     setArticles(prev =>
       prev.map(a => {
         if (a.id === id) {
-          const nextState = !a.saved;
-          triggerToast(nextState ? "Essay Saved" : "Essay Removed");
+          nextState = !a.saved;
           return { ...a, saved: nextState };
         }
         return a;
       })
     );
+    await updateArticleState(id, { saved: nextState });
+    triggerToast(nextState ? "Essay Saved" : "Essay Removed");
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     setArticles(prev => prev.map(a => ({ ...a, unread: false })));
+    for (const a of articles) {
+      if (a.unread) {
+        await updateArticleState(a.id, { unread: false });
+      }
+    }
     triggerToast("All articles marked as read");
   };
 
-  // Real Add Feed Handler with Autodiscovery and CORS Fetch
+  // Manual Background Refresh Trigger
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    triggerToast("Checking feeds for new essays...");
+
+    try {
+      const syncRes = await refreshAllFeeds(subscriptions as any, articles as any);
+      setArticles(syncRes.updatedArticles);
+      if (syncRes.newPostsCount > 0) {
+        triggerToast(`${syncRes.newPostsCount} fresh essays loaded`);
+      } else {
+        triggerToast("All feeds up to date");
+      }
+    } catch (err: any) {
+      triggerToast(`Refresh error: ${err.message || "Failed"}`);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Real Add Feed Handler with Persistent IndexedDB Storage
   const handleAddFeedSubmit = async (e?: React.FormEvent, customUrl?: string) => {
     if (e) e.preventDefault();
     const entered = (customUrl || newFeedUrl).trim();
@@ -445,14 +476,16 @@ export default function ReaderDashboard() {
         color: assignedColor,
       };
 
-      setSubscriptions(prev => [newSub, ...prev]);
+      const updatedSubs = [newSub, ...subscriptions];
+      setSubscriptions(updatedSubs);
+      await saveStoredSubscriptions(updatedSubs as any);
 
       // Merge novel articles
-      setArticles(prev => {
-        const existingUrls = new Set(prev.map(a => a.url));
-        const novel = parsedFeed.articles.filter(a => !existingUrls.has(a.url));
-        return [...novel, ...prev];
-      });
+      const existingUrls = new Set(articles.map(a => a.url));
+      const novel = parsedFeed.articles.filter(a => !existingUrls.has(a.url));
+      const updatedArticles = [...novel, ...articles];
+      setArticles(updatedArticles);
+      await saveStoredArticles(updatedArticles);
 
       setNewFeedUrl("");
       setIsAddFeedModalOpen(false);
@@ -472,10 +505,28 @@ export default function ReaderDashboard() {
     }
   };
 
-  // Full-Text Readability + DOMPurify on Article Click (Task C)
+  // Persistent Subscription Removal
+  const handleRemoveSubscription = async (id: string, name: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const updatedSubs = subscriptions.filter(s => s.id !== id);
+    setSubscriptions(updatedSubs);
+    await removeStoredSubscription(id);
+
+    // Remove articles belonging to this feed from state
+    const updatedArticles = articles.filter(a => a.blogId !== id);
+    setArticles(updatedArticles);
+
+    if (selectedBlogId === id) {
+      setSelectedBlogId(null);
+    }
+
+    triggerToast(`Unsubscribed from ${name}`);
+  };
+
+  // Full-Text Readability + DOMPurify with Persistent Article Content
   const handleSelectArticle = async (article: Article) => {
     setSelectedArticle(article);
-    markAsRead(article.id);
+    await markAsRead(article.id);
 
     // If article body is short or missing, extract full document
     if (article.url && (!article.content || article.content.length < 800)) {
@@ -483,12 +534,15 @@ export default function ReaderDashboard() {
       try {
         const extracted = await extractFullArticle(article.url, article.content);
         if (extracted.content && extracted.content.length > 200) {
+          const updatedContent = extracted.content;
           setSelectedArticle(prev =>
-            prev && prev.id === article.id ? { ...prev, content: extracted.content } : prev
+            prev && prev.id === article.id ? { ...prev, content: updatedContent } : prev
           );
           setArticles(prev =>
-            prev.map(a => (a.id === article.id ? { ...a, content: extracted.content } : a))
+            prev.map(a => (a.id === article.id ? { ...a, content: updatedContent } : a))
           );
+          // Persist extracted content in IndexedDB
+          await idbUpdateArticle(article.id, { content: updatedContent });
         }
       } catch (err) {
         console.warn("Readability fallback:", err);
@@ -635,7 +689,7 @@ export default function ReaderDashboard() {
         {/* Right: Quick Actions */}
         <div className="flex items-center gap-3">
           
-          {/* Change 3: Saved Posts Dropdown */}
+          {/* Saved Posts Dropdown */}
           <div className="relative" ref={savedDropdownRef}>
             <button
               onClick={() => setIsSavedDropdownOpen(prev => !prev)}
@@ -708,7 +762,7 @@ export default function ReaderDashboard() {
             </AnimatePresence>
           </div>
 
-          {/* Change 5: Clean Add Feed Trigger */}
+          {/* Add Feed Trigger */}
           <button
             onClick={() => setIsAddFeedModalOpen(true)}
             className="flex items-center gap-1.5 bg-[#b45309] hover:bg-[#92400e] text-white px-3.5 py-1.5 rounded-xl text-xs font-serif font-medium shadow-xs transition-colors"
@@ -796,7 +850,7 @@ export default function ReaderDashboard() {
               </button>
             </div>
 
-            {/* Subscriptions Section with Category Dropdown & OPML Actions */}
+            {/* Subscriptions Section with Category Dropdown, OPML Actions & Removal */}
             <div className="space-y-2.5 pt-4 border-t border-[#e8dfd1]">
               
               {/* Header with Category Dropdown & OPML buttons */}
@@ -866,35 +920,45 @@ export default function ReaderDashboard() {
                 </div>
               </div>
 
-              {/* Subscriptions List */}
+              {/* Subscriptions List with Hover Unsubscribe Action */}
               <div className="space-y-1">
                 {filteredSubscriptions.map(sub => (
-                  <button
+                  <div
                     key={sub.id}
                     onClick={() => {
                       setSelectedBlogId(sub.id);
                       setActiveTab("all");
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-serif transition-colors ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-serif transition-colors group cursor-pointer ${
                       selectedBlogId === sub.id
                         ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                         : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
+                    <div className="flex items-center gap-2.5 truncate flex-1 mr-2">
                       <span
-                        className={`w-5 h-5 rounded-md border flex items-center justify-center font-mono font-bold text-[10px] ${sub.color}`}
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center font-mono font-bold text-[10px] flex-shrink-0 ${sub.color}`}
                       >
                         {sub.initial}
                       </span>
                       <span className="truncate">{sub.name}</span>
                     </div>
-                    {sub.unreadCount > 0 && (
-                      <span className="text-[10px] font-mono text-[#8c7e6c]">
-                        {sub.unreadCount}
-                      </span>
-                    )}
-                  </button>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {sub.unreadCount > 0 && (
+                        <span className="text-[10px] font-mono text-[#8c7e6c]">
+                          {sub.unreadCount}
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => handleRemoveSubscription(sub.id, sub.name, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[#f4ece1] text-[#8c7e6c] hover:text-[#b91c1c] transition-all"
+                        title={`Unsubscribe from ${sub.name}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -968,10 +1032,22 @@ export default function ReaderDashboard() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xs font-mono text-[#8c7e6c]">
                       {filteredArticles.length} essays
                     </span>
+
+                    {/* Manual Background Refresh Button */}
+                    <button
+                      onClick={handleManualRefresh}
+                      disabled={isRefreshing}
+                      className="text-xs font-serif font-medium px-3 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                      title="Sync and check feeds for fresh essays"
+                    >
+                      <RefreshCw className={`w-3 h-3 text-[#b45309] ${isRefreshing ? "animate-spin" : ""}`} />
+                      <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
+                    </button>
+
                     <button
                       onClick={markAllRead}
                       className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
@@ -987,7 +1063,7 @@ export default function ReaderDashboard() {
                     <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
                     <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
                     <p className="font-serif text-xs text-[#8c7e6c]">
-                      {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later."}
+                      {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later or add new feeds."}
                     </p>
                   </div>
                 ) : (

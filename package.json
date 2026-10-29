@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:backend": "npx tsx scripts/test-backend.mjs"
+    "test:backend": "npx tsx scripts/test-backend.mjs",
+    "test:persistence": "npx tsx scripts/test-persistence.mjs",
+    "test": "npm run test:backend && npm run test:persistence"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

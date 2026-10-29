@@ -1,64 +1,136 @@
 import { ParsedArticle } from "./feedParser";
+import {
+  StoredSubscription,
+  idbGetSubscriptions,
+  idbSaveSubscriptions,
+  idbSaveSubscription,
+  idbDeleteSubscription,
+  idbGetArticles,
+  idbSaveArticles,
+  idbSetReadingState,
+  idbGetPreference,
+  idbSetPreference,
+} from "./idb";
+
+export type { StoredSubscription };
 
 const STORAGE_KEYS = {
-  SUBSCRIPTIONS: "swr_subscriptions_v1",
-  ARTICLES: "swr_articles_v1",
-  OPT_IN_DISCOVERY: "swr_opt_in_discovery_v1",
-  LAST_SYNC: "swr_last_discovery_sync_v1",
+  SUBSCRIPTIONS: "swr_subscriptions_v2",
+  ARTICLES: "swr_articles_v2",
+  OPT_IN_DISCOVERY: "swr_opt_in_discovery_v2",
+  LAST_SYNC: "swr_last_discovery_sync_v2",
+  IS_INITIALIZED: "swr_db_initialized_v2",
 };
 
-export interface StoredSubscription {
-  id: string;
-  name: string;
-  category: string;
-  feedUrl: string;
-  siteUrl?: string;
-  unreadCount: number;
-  initial: string;
-  color: string;
-}
-
-export function loadStoredSubscriptions(fallback: StoredSubscription[]): StoredSubscription[] {
+/**
+ * Loads subscriptions from IndexedDB with fallback to seed data on first run.
+ */
+export async function loadStoredSubscriptions(
+  fallback: StoredSubscription[]
+): Promise<StoredSubscription[]> {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTIONS);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
-  } catch {
+    const idbSubs = await idbGetSubscriptions();
+    if (idbSubs && idbSubs.length > 0) {
+      return idbSubs;
+    }
+
+    // Check if user previously deleted all feeds (is initialized)
+    const initialized = localStorage.getItem(STORAGE_KEYS.IS_INITIALIZED);
+    if (initialized === "true") {
+      return []; // Respect user having 0 subscriptions
+    }
+
+    // First time opening app: seed with initial subscriptions
+    await idbSaveSubscriptions(fallback);
+    localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, "true");
+    return fallback;
+  } catch (err) {
+    console.warn("loadStoredSubscriptions error, returning fallback:", err);
     return fallback;
   }
 }
 
-export function saveStoredSubscriptions(subs: StoredSubscription[]): void {
+/**
+ * Saves subscriptions to IndexedDB and updates backup cache.
+ */
+export async function saveStoredSubscriptions(
+  subs: StoredSubscription[]
+): Promise<void> {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEYS.SUBSCRIPTIONS, JSON.stringify(subs));
+    await idbSaveSubscriptions(subs);
+    localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, "true");
   } catch (err) {
-    console.warn("Failed to persist subscriptions to localStorage:", err);
+    console.warn("Failed to persist subscriptions to IndexedDB:", err);
   }
 }
 
-export function loadStoredArticles(fallback: ParsedArticle[]): ParsedArticle[] {
+/**
+ * Removes a subscription and its posts from IndexedDB.
+ */
+export async function removeStoredSubscription(id: string): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    await idbDeleteSubscription(id);
+  } catch (err) {
+    console.warn("Failed to delete subscription from IndexedDB:", err);
+  }
+}
+
+/**
+ * Loads cached articles from IndexedDB.
+ */
+export async function loadStoredArticles(
+  fallback: ParsedArticle[]
+): Promise<ParsedArticle[]> {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.ARTICLES);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
-  } catch {
+    const idbArticles = await idbGetArticles();
+    if (idbArticles && idbArticles.length > 0) {
+      return idbArticles;
+    }
+
+    const initialized = localStorage.getItem(STORAGE_KEYS.IS_INITIALIZED);
+    if (initialized === "true") {
+      return [];
+    }
+
+    // First time opening app: seed with initial articles
+    await idbSaveArticles(fallback);
+    return fallback;
+  } catch (err) {
+    console.warn("loadStoredArticles error, returning fallback:", err);
     return fallback;
   }
 }
 
-export function saveStoredArticles(articles: ParsedArticle[]): void {
+/**
+ * Saves articles to IndexedDB.
+ */
+export async function saveStoredArticles(
+  articles: ParsedArticle[]
+): Promise<void> {
   if (typeof window === "undefined") return;
   try {
-    // Keep up to 250 most recent articles to prevent exceeding storage quotas
-    const slice = articles.slice(0, 250);
-    localStorage.setItem(STORAGE_KEYS.ARTICLES, JSON.stringify(slice));
+    await idbSaveArticles(articles);
   } catch (err) {
-    console.warn("Failed to persist articles to localStorage:", err);
+    console.warn("Failed to persist articles to IndexedDB:", err);
+  }
+}
+
+/**
+ * Persists article reading state (read/unread and saved bookmark).
+ */
+export async function updateArticleState(
+  articleId: string,
+  state: { unread?: boolean; saved?: boolean }
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    await idbSetReadingState(articleId, state);
+  } catch (err) {
+    console.warn("Failed to persist article reading state:", err);
   }
 }
 
@@ -75,6 +147,7 @@ export function setOptInDiscovery(enabled: boolean): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEYS.OPT_IN_DISCOVERY, String(enabled));
+    idbSetPreference("opt_in_discovery", enabled);
   } catch (err) {
     console.warn("Failed to set opt-in discovery flag:", err);
   }
