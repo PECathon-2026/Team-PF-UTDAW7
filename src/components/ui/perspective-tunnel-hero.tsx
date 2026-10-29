@@ -10,7 +10,7 @@ import {
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Compass, ArrowRight, Feather, Coffee, Sparkles } from "lucide-react";
+import { BookOpen, Compass, ArrowRight, Feather, Coffee, Sparkles, ChevronDown } from "lucide-react";
 
 interface BlogCardItem {
     src: string;
@@ -275,8 +275,17 @@ export default function PerspectiveTunnelHero() {
         if (!el) return;
 
         const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
             const current = rawProgress.get();
+            if (window.scrollY > 20) {
+                return;
+            }
+            if (current >= 0.95 && e.deltaY > 0) {
+                return;
+            }
+            if (current <= 0.02 && e.deltaY < 0) {
+                return;
+            }
+            e.preventDefault();
             const delta = e.deltaY * 0.0008;
             const next = Math.min(1, Math.max(0, current + delta));
             rawProgress.set(next);
@@ -321,9 +330,9 @@ export default function PerspectiveTunnelHero() {
                     </div>
                     <Link
                         href="/reader"
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1f1c19] text-[#fbf8f2] hover:bg-[#38332c] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#b45309] text-white hover:bg-[#92400e] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm shadow-[#b45309]/20"
                     >
-                        Enter Library <ArrowRight className="w-3.5 h-3.5" />
+                        Get Started <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                 </div>
             </header>
@@ -356,34 +365,42 @@ export default function PerspectiveTunnelHero() {
                     A calm, offline-first sanctuary for longform thinkers, digital gardens, and indie blogs. Discovered through human reader overlap, never corporate tracking.
                 </p>
 
-                {/* Action Buttons that reveal during scroll travel */}
-                <motion.div
-                    style={{ opacity: actionsOpacity }}
-                    className="pointer-events-auto mt-8 flex flex-wrap items-center justify-center gap-3.5"
+                {/* Primary Action Buttons: Always visible & clickable */}
+                <div
+                    className="pointer-events-auto mt-7 flex flex-wrap items-center justify-center gap-3.5 z-20"
                 >
                     <Link
                         href="/reader"
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm transition-all shadow-md shadow-[#b45309]/20 hover:scale-105"
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm transition-all shadow-md shadow-[#b45309]/20 hover:scale-105"
                     >
-                        <BookOpen className="w-4 h-4 text-white" /> Open Personal Timeline
+                        <span>Get Started</span> <ArrowRight className="w-4 h-4 text-white" />
                     </Link>
                     <Link
                         href="/discover"
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-[#d6caba] text-[#1f1c19] font-serif font-medium text-sm hover:border-[#b45309]/60 hover:bg-[#faf5eb] transition-all"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#fffdfa]/90 backdrop-blur-sm border border-[#d6caba] text-[#1f1c19] font-serif font-medium text-sm hover:border-[#b45309]/60 hover:bg-[#faf5eb] transition-all"
                     >
                         <Compass className="w-4 h-4 text-[#b45309]" /> Anonymous Discovery
                     </Link>
-                </motion.div>
+                </div>
             </motion.div>
 
             {/* Warm Quill Scroll Prompt */}
             <motion.div
                 style={{ opacity: promptOpacity }}
-                className="pointer-events-none absolute bottom-9 z-20 flex flex-col items-center gap-2 text-xs font-mono uppercase tracking-[0.25em] text-[#8c7e6c]"
+                className="pointer-events-none absolute bottom-12 z-20 flex flex-col items-center gap-2 text-xs font-mono uppercase tracking-[0.25em] text-[#8c7e6c]"
             >
                 <span>Scroll to explore the library</span>
                 <div className="h-7 w-px bg-gradient-to-b from-[#b45309] to-transparent animate-pulse" />
             </motion.div>
+
+            {/* Quick Explore Anchor */}
+            <a
+                href="#features"
+                className="pointer-events-auto absolute bottom-3.5 z-30 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f3ecdf]/90 border border-[#e2d6c3] text-[11px] font-mono text-[#786b59] hover:text-[#b45309] hover:bg-[#fffdfa] transition-all shadow-xs backdrop-blur-sm cursor-pointer"
+            >
+                <span>Explore System Architecture</span>
+                <ChevronDown className="w-3.5 h-3.5 text-[#b45309] animate-bounce" />
+            </a>
 
             {/* 3D Z-Space Blog Tunnel Cards */}
             <div
