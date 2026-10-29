@@ -38,12 +38,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const applyTheme = (nextTheme: Theme) => {
+    if (typeof document === "undefined") return;
     const root = document.documentElement;
+    const body = document.body;
     if (nextTheme === "dark") {
       root.classList.add("dark");
+      root.setAttribute("data-theme", "dark");
+      if (body) {
+        body.classList.add("dark");
+        body.setAttribute("data-theme", "dark");
+      }
       root.style.colorScheme = "dark";
     } else {
       root.classList.remove("dark");
+      root.setAttribute("data-theme", "light");
+      if (body) {
+        body.classList.remove("dark");
+        body.setAttribute("data-theme", "light");
+      }
       root.style.colorScheme = "light";
     }
   };

@@ -35,6 +35,7 @@ import ConstellationGraph from "@/components/graph/ConstellationGraph";
 import ListenModePlayer from "@/components/reader/ListenModePlayer";
 import AiDigestCard from "@/components/reader/AiDigestCard";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import { useTheme } from "@/context/ThemeContext";
 import { generateOnDeviceDigest, ArticleDigest } from "@/lib/summarizer";
 
 interface Article {
@@ -174,6 +175,7 @@ const INITIAL_ARTICLES: Article[] = [
 ];
 
 export default function ReaderDashboard() {
+  const { isDark } = useTheme();
   const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved">("all");
@@ -433,7 +435,11 @@ export default function ReaderDashboard() {
   const savedTotal = savedArticles.length;
 
   return (
-    <div className="min-h-screen bg-[#fbf8f2] text-[#1f1c19] flex flex-col font-sans selection:bg-[#b45309]/15 selection:text-[#92400e]">
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+      isDark
+        ? "bg-[#121110] text-[#f5efe6] selection:bg-amber-900/40 selection:text-amber-200"
+        : "bg-[#fbf8f2] text-[#1f1c19] selection:bg-[#b45309]/15 selection:text-[#92400e]"
+    }`}>
       
       {/* Toast Notification */}
       <AnimatePresence>
@@ -442,7 +448,11 @@ export default function ReaderDashboard() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#1f1c19] text-[#fbf8f2] text-xs font-mono px-4 py-2 rounded-full shadow-lg border border-[#38332c] flex items-center gap-2"
+            className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 text-xs font-mono px-4 py-2 rounded-full shadow-lg border flex items-center gap-2 ${
+              isDark
+                ? "bg-[#221f1c] text-[#f5efe6] border-[#3d372f]"
+                : "bg-[#1f1c19] text-[#fbf8f2] border-[#38332c]"
+            }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-[#b45309]" />
             <span>{notification}</span>
@@ -451,27 +461,31 @@ export default function ReaderDashboard() {
       </AnimatePresence>
 
       {/* TOP HEADER */}
-      <header className="h-16 border-b border-[#e8dfd1] bg-[#fbf8f2]/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
+      <header className={`h-16 border-b px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md transition-colors duration-200 ${
+        isDark ? "border-[#2d2924] bg-[#141210]/95" : "border-[#e8dfd1] bg-[#fbf8f2]/95"
+      }`}>
         
         {/* Brand & Back Button */}
         <div className="flex items-center gap-5">
           <Link
             href="/"
-            className="group flex items-center gap-2 text-xs font-mono text-[#786b59] hover:text-[#b45309] transition-colors"
+            className={`group flex items-center gap-2 text-xs font-mono transition-colors ${
+              isDark ? "text-[#a89d8f] hover:text-[#fbbf24]" : "text-[#786b59] hover:text-[#b45309]"
+            }`}
           >
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
             <span className="hidden sm:inline">Landing Page</span>
           </Link>
           
-          <div className="h-4 w-px bg-[#e8dfd1] hidden sm:block" />
+          <div className={`h-4 w-px hidden sm:block ${isDark ? "bg-[#2d2924]" : "bg-[#e8dfd1]"}`} />
 
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#b45309] text-white flex items-center justify-center shadow-xs">
               <Feather className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="font-serif font-bold text-sm tracking-tight text-[#1f1c19]">small web</h1>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-[#786b59]">personal library</p>
+              <h1 className={`font-serif font-bold text-sm tracking-tight ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>small web</h1>
+              <p className={`text-[10px] font-mono uppercase tracking-widest ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>personal library</p>
             </div>
           </div>
         </div>
@@ -484,9 +498,15 @@ export default function ReaderDashboard() {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search essays, systems, authors..."
-            className="w-full bg-[#f4ece1]/80 border border-[#e2d6c3] rounded-xl pl-9 pr-12 py-1.5 text-xs text-[#1f1c19] placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all font-serif"
+            className={`w-full border rounded-xl pl-9 pr-12 py-1.5 text-xs font-serif transition-all focus:outline-none focus:ring-1 focus:ring-[#b45309] ${
+              isDark
+                ? "bg-[#1d1a17] border-[#2d2924] text-[#f5efe6] placeholder-[#756a5c] focus:bg-[#221f1c]"
+                : "bg-[#f4ece1]/80 border-[#e2d6c3] text-[#1f1c19] placeholder-[#8c7e6c] focus:bg-white"
+            }`}
           />
-          <kbd className="absolute right-2.5 px-1.5 py-0.5 text-[9px] font-mono bg-white border border-[#d6caba] text-[#8c7e6c] rounded">
+          <kbd className={`absolute right-2.5 px-1.5 py-0.5 text-[9px] font-mono rounded border ${
+            isDark ? "bg-[#221f1c] border-[#38332c] text-[#a89d8f]" : "bg-white border-[#d6caba] text-[#8c7e6c]"
+          }`}>
             ⌘K
           </kbd>
         </div>
@@ -589,7 +609,9 @@ export default function ReaderDashboard() {
         {/* RESIZABLE & COLLAPSIBLE LEFT SIDEBAR */}
         <aside
           style={{ width: isSidebarCollapsed ? 0 : `${sidebarWidth}px` }}
-          className={`border-r border-[#e8dfd1] bg-[#f7f2e8]/60 flex flex-col justify-between hidden lg:flex relative select-none transition-all duration-300 ease-in-out ${
+          className={`border-r flex flex-col justify-between hidden lg:flex relative select-none transition-all duration-300 ease-in-out ${
+            isDark ? "border-[#2d2924] bg-[#161413]" : "border-[#e8dfd1] bg-[#f7f2e8]/60"
+          } ${
             isSidebarCollapsed
               ? "!w-0 !p-0 !border-r-0 overflow-hidden opacity-0 pointer-events-none"
               : "p-4 overflow-y-auto opacity-100"
@@ -781,13 +803,19 @@ export default function ReaderDashboard() {
         )}
 
         {/* 2. CENTER FEED (Chronological Timeline or Constellation Portal) */}
-        <main className="flex-1 flex flex-col overflow-y-auto bg-[#fbf8f2]">
+        <main className={`flex-1 flex flex-col overflow-y-auto transition-colors duration-200 ${
+          isDark ? "bg-[#121110]" : "bg-[#fbf8f2]"
+        }`}>
           <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
             
             {/* Header Title & Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
+            <div className={`flex flex-col sm:flex-row sm:items-baseline justify-between border-b pb-5 gap-4 ${
+              isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"
+            }`}>
               <div>
-                <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
+                <h2 className={`font-serif text-3xl sm:text-4xl font-normal tracking-tight ${
+                  isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                }`}>
                   {viewMode === "graph"
                     ? "Mystic Constellation."
                     : selectedBlogId
@@ -798,7 +826,9 @@ export default function ReaderDashboard() {
                     ? "Saved Garden"
                     : "Personal Timeline."}
                 </h2>
-                <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
+                <p className={`font-serif text-xs sm:text-sm mt-1.5 ${
+                  isDark ? "text-[#a89d8f]" : "text-[#786b59]"
+                }`}>
                   {viewMode === "graph"
                     ? "Decentralized Small Web co-subscription graph • PECFest Mystic Mikado Special Edition"
                     : "Latest writings from your curated library. Sorted purely by chronologic delivery."}
@@ -807,12 +837,16 @@ export default function ReaderDashboard() {
 
               {/* Feed Actions (Clean - No top menu switch) */}
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-[#8c7e6c]">
+                <span className={`text-xs font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                   {filteredArticles.length} essays
                 </span>
                 <button
                   onClick={markAllRead}
-                  className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
+                  className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-colors shadow-xs ${
+                    isDark
+                      ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
+                      : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
+                  }`}
                 >
                   Mark all read
                 </button>
@@ -823,22 +857,32 @@ export default function ReaderDashboard() {
             {viewMode === "graph" ? (
               <div className="py-4 space-y-8 font-serif">
                 {/* Warm Editorial Portal Gate Card */}
-                <div className="relative overflow-hidden rounded-3xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md p-8 sm:p-12 text-[#1f1c19] space-y-6">
+                <div className={`relative overflow-hidden rounded-3xl border shadow-md p-8 sm:p-12 space-y-6 transition-colors duration-200 ${
+                  isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e2d6c3] text-[#1f1c19]"
+                }`}>
                   
                   {/* Subtle Japanese Watermark in Background */}
-                  <div className="absolute -right-4 -bottom-6 select-none pointer-events-none text-[160px] font-serif font-black text-[#e8dfd1]/35 leading-none">
+                  <div className={`absolute -right-4 -bottom-6 select-none pointer-events-none text-[160px] font-serif font-black leading-none ${
+                    isDark ? "text-amber-500/5" : "text-[#e8dfd1]/35"
+                  }`}>
                     星座
                   </div>
 
                   <div className="space-y-3 relative z-10">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#92400e] px-2.5 py-0.5 rounded-full bg-[#fef3c7] border border-[#fde68a] font-bold">
+                      <span className={`text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full font-bold ${
+                        isDark
+                          ? "text-amber-400 bg-amber-950/60 border border-amber-800/60"
+                          : "text-[#92400e] bg-[#fef3c7] border border-[#fde68a]"
+                      }`}>
                         PECFest 2026 • Mystic Mikado
                       </span>
-                      <span className="text-xs font-mono text-[#786b59]">神秘の星座探訪</span>
+                      <span className={`text-xs font-mono ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>神秘の星座探訪</span>
                     </div>
 
-                    <h2 className="text-3xl sm:text-4xl font-serif font-bold text-[#1f1c19] tracking-tight leading-tight">
+                    <h2 className={`text-3xl sm:text-4xl font-serif font-bold tracking-tight leading-tight ${
+                      isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                    }`}>
                       Constellation Discovery Graph
                     </h2>
 
@@ -914,7 +958,11 @@ export default function ReaderDashboard() {
                       setSelectedArticle(article);
                       markAsRead(article.id);
                     }}
-                    className="group p-5 rounded-2xl border border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start"
+                    className={`group p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start ${
+                      isDark
+                        ? "border-[#2d2924] hover:border-[#fbbf24]/40 hover:shadow-lg bg-[#181614] text-[#f5efe6]"
+                        : "border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] text-[#1f1c19]"
+                    }`}
                   >
                     <div className="flex-1 space-y-2.5">
                       
@@ -925,44 +973,60 @@ export default function ReaderDashboard() {
                             article.unread ? "bg-[#b45309]" : "bg-transparent"
                           }`}
                         />
-                        <span className="font-serif font-bold text-[#1f1c19] text-xs">
+                        <span className={`font-serif font-bold text-xs ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>
                           {article.blogName}
                         </span>
-                        <span className="text-[#d6caba]">•</span>
-                        <span className="font-mono text-[11px] text-[#8c7e6c]">
+                        <span className={isDark ? "text-[#423b32]" : "text-[#d6caba]"}>•</span>
+                        <span className={`font-mono text-[11px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                           {article.category}
                         </span>
                       </div>
 
                       {/* Article Headline */}
-                      <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1f1c19] group-hover:text-[#b45309] transition-colors leading-snug">
+                      <h3 className={`font-serif text-xl sm:text-2xl font-bold transition-colors leading-snug ${
+                        isDark
+                          ? "text-[#f5efe6] group-hover:text-[#fbbf24]"
+                          : "text-[#1f1c19] group-hover:text-[#b45309]"
+                      }`}>
                         {article.title}
                       </h3>
 
                       {/* Excerpt */}
-                      <p className="font-serif text-xs sm:text-sm text-[#574e44] line-clamp-2 leading-relaxed">
+                      <p className={`font-serif text-xs sm:text-sm line-clamp-2 leading-relaxed ${
+                        isDark ? "text-[#aba092]" : "text-[#574e44]"
+                      }`}>
                         {article.excerpt}
                       </p>
 
                       {/* Bottom Actions */}
-                      <div className="flex items-center justify-between text-xs text-[#8c7e6c] font-mono pt-1">
+                      <div className={`flex items-center justify-between text-xs font-mono pt-1 ${
+                        isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
+                      }`}>
                         <span className="flex items-center gap-1.5">
-                          <Clock className="w-3 h-3 text-[#b45309]" />
+                          <Clock className={`w-3 h-3 ${isDark ? "text-[#fbbf24]" : "text-[#b45309]"}`} />
                           {article.readTime} • {article.date}
                         </span>
 
                         <div className="flex items-center gap-2">
                           <button
                             onClick={e => toggleSave(article.id, e)}
-                            className={`p-1.5 rounded-lg hover:bg-[#f3ecdf] transition-colors ${
-                              article.saved ? "text-[#b45309]" : "text-[#8c7e6c]"
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isDark ? "hover:bg-[#25211c]" : "hover:bg-[#f3ecdf]"
+                            } ${
+                              article.saved
+                                ? isDark ? "text-[#fbbf24]" : "text-[#b45309]"
+                                : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
                             }`}
                           >
                             <Bookmark className="w-3.5 h-3.5" fill={article.saved ? "currentColor" : "none"} />
                           </button>
                           <button
                             onClick={e => markAsRead(article.id, e)}
-                            className="p-1.5 rounded-lg hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19] transition-colors"
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isDark
+                                ? "hover:bg-[#25211c] text-[#8c8172] hover:text-[#f5efe6]"
+                                : "hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19]"
+                            }`}
                             title="Mark read"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1188,16 +1252,18 @@ export default function ReaderDashboard() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className={`bg-[#fbf8f2] h-full shadow-2xl flex flex-col justify-between border-l border-[#e8dfd1] cursor-default transition-all duration-300 ${
+              className={`h-full shadow-2xl flex flex-col justify-between border-l cursor-default transition-all duration-300 ${
                 isReaderFullscreen ? "w-full max-w-full" : "w-full max-w-2xl"
-              }`}
+              } ${isDark ? "bg-[#121110] border-[#2d2924] text-[#f5efe6]" : "bg-[#fbf8f2] border-[#e8dfd1] text-[#1f1c19]"}`}
             >
               
               {/* Drawer Top Header Controls */}
-              <div className="h-16 border-b border-[#e8dfd1] px-6 flex items-center justify-between bg-[#f4ece1]/80">
+              <div className={`h-16 border-b px-6 flex items-center justify-between transition-colors duration-200 ${
+                isDark ? "border-[#2d2924] bg-[#161412]/95" : "border-[#e8dfd1] bg-[#f4ece1]/80"
+              }`}>
                 <div className="flex items-center gap-2">
                   <Feather className="w-3.5 h-3.5 text-[#b45309]" />
-                  <span className="font-serif font-bold text-xs text-[#1f1c19]">Reading View</span>
+                  <span className={`font-serif font-bold text-xs ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Reading View</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1207,6 +1273,8 @@ export default function ReaderDashboard() {
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-serif transition-colors ${
                       isAiDigestOpen
                         ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
+                        : isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] text-[#aba092] hover:bg-[#282420]"
                         : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
                     }`}
                     title="AI Digest"
@@ -1228,6 +1296,8 @@ export default function ReaderDashboard() {
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-serif transition-colors ${
                       isListenModeActive
                         ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
+                        : isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] text-[#aba092] hover:bg-[#282420]"
                         : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
                     }`}
                     title="Listen to essay aloud (TTS Audio)"
@@ -1236,11 +1306,15 @@ export default function ReaderDashboard() {
                     <span>{isListenModeActive ? "Listening" : "Listen"}</span>
                   </button>
 
-                  <div className="h-4 w-px bg-[#d6caba] mx-0.5 hidden sm:block" />
+                  <div className={`h-4 w-px mx-0.5 hidden sm:block ${isDark ? "bg-[#2d2924]" : "bg-[#d6caba]"}`} />
 
                   <button
                     onClick={() => setFontFamily(f => (f === "serif" ? "sans" : "serif"))}
-                    className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono hover:bg-[#f3ecdf] text-[#574e44]"
+                    className={`p-1.5 rounded-lg border text-xs font-mono transition-colors ${
+                      isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] hover:bg-[#282420] text-[#aba092]"
+                        : "bg-white border-[#e2d6c3] hover:bg-[#f3ecdf] text-[#574e44]"
+                    }`}
                     title="Toggle Serif/Sans font"
                   >
                     <Type className="w-4 h-4" />
@@ -1250,7 +1324,11 @@ export default function ReaderDashboard() {
                     onClick={() =>
                       setFontSize(s => (s === "normal" ? "large" : s === "large" ? "xlarge" : "normal"))
                     }
-                    className="px-2 py-1 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono font-bold hover:bg-[#f3ecdf] text-[#574e44]"
+                    className={`px-2 py-1 rounded-lg border text-xs font-mono font-bold transition-colors ${
+                      isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] hover:bg-[#282420] text-[#aba092]"
+                        : "bg-white border-[#e2d6c3] hover:bg-[#f3ecdf] text-[#574e44]"
+                    }`}
                     title="Change font size"
                   >
                     {fontSize === "normal" ? "A" : fontSize === "large" ? "A+" : "A++"}
@@ -1259,19 +1337,27 @@ export default function ReaderDashboard() {
                   {/* Fullscreen Reading Mode Toggle */}
                   <button
                     onClick={() => setIsReaderFullscreen(f => !f)}
-                    className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono hover:bg-[#f3ecdf] text-[#574e44] transition-colors"
+                    className={`p-1.5 rounded-lg border text-xs font-mono transition-colors ${
+                      isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] hover:bg-[#282420] text-[#aba092]"
+                        : "bg-white border-[#e2d6c3] hover:bg-[#f3ecdf] text-[#574e44]"
+                    }`}
                     title={isReaderFullscreen ? "Exit full screen view" : "Expand to full screen"}
                   >
                     {isReaderFullscreen ? (
-                      <Minimize2 className="w-4 h-4 text-[#b45309]" />
+                      <Minimize2 className="w-4 h-4 text-[#fbbf24]" />
                     ) : (
-                      <Maximize2 className="w-4 h-4 text-[#574e44]" />
+                      <Maximize2 className="w-4 h-4" />
                     )}
                   </button>
 
                   <button
                     onClick={handleCloseReadingDrawer}
-                    className="w-8 h-8 rounded-full bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f] flex items-center justify-center text-xs font-bold transition-colors ml-1"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ml-1 ${
+                      isDark
+                        ? "bg-[#25211c] hover:bg-[#332c25] text-[#fbbf24]"
+                        : "bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f]"
+                    }`}
                     title="Close reading view"
                   >
                     <X className="w-4 h-4" />
@@ -1286,7 +1372,9 @@ export default function ReaderDashboard() {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden border-b border-[#e8dfd1] bg-[#f9f5ed]"
+                    className={`overflow-hidden border-b ${
+                      isDark ? "border-[#2d2924] bg-[#161412]" : "border-[#e8dfd1] bg-[#f9f5ed]"
+                    }`}
                   >
                     <div className={isReaderFullscreen ? "max-w-3xl mx-auto px-4" : ""}>
                       <ListenModePlayer
@@ -1311,11 +1399,13 @@ export default function ReaderDashboard() {
                     <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">
                       {selectedArticle.category}
                     </span>
-                    <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#1f1c19] mt-2.5 leading-tight">
+                    <h1 className={`font-serif text-3xl sm:text-4xl font-bold mt-2.5 leading-tight ${
+                      isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                    }`}>
                       {selectedArticle.title}
                     </h1>
-                    <p className="font-mono text-xs text-[#8c7e6c] mt-3">
-                      By <strong className="text-[#1f1c19]">{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
+                    <p className={`font-mono text-xs mt-3 ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
+                      By <strong className={isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}>{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
                     </p>
                   </div>
 
@@ -1330,12 +1420,14 @@ export default function ReaderDashboard() {
                     )}
                   </AnimatePresence>
 
-                  <hr className="border-[#e8dfd1]" />
+                  <hr className={isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"} />
 
                   {/* Article Prose with Active Speech Highlighting */}
                   {isListenModeActive ? (
                     <div
-                      className={`leading-relaxed text-[#2b2621] space-y-4 ${
+                      className={`leading-relaxed space-y-4 ${
+                        isDark ? "text-[#e4dcd1]" : "text-[#2b2621]"
+                      } ${
                         fontFamily === "serif" ? "font-serif" : "font-sans"
                       } ${
                         fontSize === "normal"
@@ -1351,7 +1443,11 @@ export default function ReaderDashboard() {
                           onClick={() => setActiveSpeechParagraph(pIdx)}
                           className={`transition-all duration-300 rounded-xl p-3.5 -mx-3.5 cursor-pointer relative ${
                             activeSpeechParagraph === pIdx
-                              ? "bg-[#fef3c7] border-l-4 border-[#b45309] shadow-xs text-[#1f1c19] font-medium"
+                              ? isDark
+                                ? "bg-amber-950/40 border-l-4 border-amber-500 shadow-xs text-amber-200 font-medium"
+                                : "bg-[#fef3c7] border-l-4 border-[#b45309] shadow-xs text-[#1f1c19] font-medium"
+                              : isDark
+                              ? "hover:bg-[#1a1714] text-[#cac0b3]"
                               : "hover:bg-[#f4ece1]/60 text-[#423b33]"
                           }`}
                           title="Click to listen from this paragraph"
@@ -1367,7 +1463,9 @@ export default function ReaderDashboard() {
                     </div>
                   ) : (
                     <div
-                      className={`leading-relaxed text-[#2b2621] space-y-5 ${
+                      className={`leading-relaxed space-y-5 ${
+                        isDark ? "text-[#e4dcd1]" : "text-[#2b2621]"
+                      } ${
                         fontFamily === "serif" ? "font-serif" : "font-sans"
                       } ${
                         fontSize === "normal"
@@ -1383,16 +1481,20 @@ export default function ReaderDashboard() {
               </div>
 
               {/* Drawer Bottom Bar */}
-              <div className="h-14 border-t border-[#e8dfd1] px-6 flex items-center justify-between text-xs font-serif text-[#786b59] bg-[#f4ece1]/80">
+              <div className={`h-14 border-t px-6 flex items-center justify-between text-xs font-serif transition-colors duration-200 ${
+                isDark ? "border-[#2d2924] bg-[#161412]/95 text-[#a89d8f]" : "border-[#e8dfd1] bg-[#f4ece1]/80 text-[#786b59]"
+              }`}>
                 <div className={`w-full flex items-center justify-between ${isReaderFullscreen ? "max-w-3xl mx-auto" : ""}`}>
-                  <span className="font-mono text-[11px] text-[#8c7e6c]">
+                  <span className={`font-mono text-[11px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                     Saved to your local offline library
                   </span>
                   <a
                     href={selectedArticle.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1.5 text-[#b45309] font-medium hover:underline"
+                    className={`flex items-center gap-1.5 font-medium hover:underline ${
+                      isDark ? "text-[#fbbf24]" : "text-[#b45309]"
+                    }`}
                   >
                     <span>Open Original Source</span>
                     <ExternalLink className="w-3.5 h-3.5" />

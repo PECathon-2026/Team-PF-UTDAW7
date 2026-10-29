@@ -1,151 +1,162 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #fbf8f2;
   --foreground: #1f1c19;
 }
 
-html.dark {
+.dark {
   --background: #121110;
   --foreground: #f5efe6;
   color-scheme: dark;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  overflow-x: hidden;
-  transition: background-color 0.25s ease, color 0.25s ease;
+.dark body {
+  background-color: #121110 !important;
+  color: #f5efe6 !important;
 }
 
-/* ══════════════════════════════════════════════════════════════════════
-   MIDNIGHT SCHOLAR / DARK EDITORIAL SYSTEM OVERRIDES
-   ══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   GLOBAL DARK OVERRIDES FOR ALL PARCHMENT SURFACES
+   ══════════════════════════════════════════════════════════════════ */
 
-/* Background Surfaces */
-html.dark [class*="bg-[#fbf8f2]"],
-html.dark .bg-\[\#fbf8f2\] {
+/* Backgrounds */
+.dark .bg-\[\#fbf8f2\],
+.dark .bg-\[\#fbf8f2\]\/95,
+.dark .bg-\[\#fbf8f2\]\/85,
+.dark .bg-\[\#f6f1e7\],
+.dark .bg-\[\#fffdfa\] {
   background-color: #121110 !important;
 }
 
-html.dark [class*="bg-[#f7f2e8]"],
-html.dark .bg-\[\#f7f2e8\]\/60 {
-  background-color: #161413 !important;
+.dark .bg-\[\#f7f2e8\]\/60,
+.dark .bg-\[\#ede3d1\],
+.dark .bg-\[\#eee5d6\] {
+  background-color: #171513 !important;
 }
 
-html.dark [class*="bg-[#f4ece1]"],
-html.dark .bg-\[\#f4ece1\],
-html.dark .bg-\[\#f4ece1\]\/80,
-html.dark .bg-\[\#f4ece1\]\/90 {
-  background-color: #1b1916 !important;
+.dark .bg-\[\#f4ece1\],
+.dark .bg-\[\#f4ece1\]\/80,
+.dark .bg-\[\#f4ece1\]\/90,
+.dark .bg-\[\#f3ecdf\],
+.dark .bg-\[\#e4d7c2\],
+.dark .bg-\[\#f5ecdd\] {
+  background-color: #1c1916 !important;
 }
 
-html.dark [class*="bg-[#fdfaf5]"],
-html.dark .bg-\[\#fdfaf5\] {
-  background-color: #1e1b18 !important;
+.dark .bg-\[\#fdfaf5\],
+.dark .bg-\[\#fdfbf7\] {
+  background-color: #1f1c18 !important;
 }
 
-html.dark [class*="bg-[#f9f5ed]"],
-html.dark [class*="bg-[#f5ede2]"] {
+.dark .bg-\[\#f9f5ed\],
+.dark .bg-\[\#f5ede2\],
+.dark .bg-\[\#f5ede2\]\/80 {
   background-color: #1d1a17 !important;
 }
 
-html.dark [class*="bg-[#fef3c7]"],
-html.dark .bg-\[\#fef3c7\] {
-  background-color: #3b2814 !important;
+.dark .bg-\[\#fef3c7\] {
+  background-color: #382714 !important;
 }
 
-html.dark [class*="bg-white"],
-html.dark .bg-white {
+.dark .bg-white {
   background-color: #221f1c !important;
 }
 
-html.dark [class*="bg-[#ebdcc8]"],
-html.dark .bg-\[\#ebdcc8\] {
-  background-color: #2c2722 !important;
+.dark .bg-\[\#ebdcc8\] {
+  background-color: #2b2621 !important;
 }
 
-/* Hover States in Dark Mode */
-html.dark [class*="hover:bg-[#f3ecdf]"]:hover,
-html.dark [class*="hover:bg-[#f4ece1]"]:hover,
-html.dark [class*="hover:bg-[#ebdcc8]"]:hover,
-html.dark [class*="hover:bg-[#debfa0]"]:hover {
-  background-color: #2b2723 !important;
-}
-
-html.dark [class*="hover:bg-white"]:hover {
-  background-color: #2b2723 !important;
+/* Hover States */
+.dark .hover\:bg-\[\#f3ecdf\]:hover,
+.dark .hover\:bg-\[\#f4ece1\]:hover,
+.dark .hover\:bg-\[\#ebdcc8\]:hover,
+.dark .hover\:bg-\[\#debfa0\]:hover,
+.dark .hover\:bg-\[\#f4ece1\]\/60:hover,
+.dark .hover\:bg-white:hover {
+  background-color: #2a2520 !important;
 }
 
 /* Borders */
-html.dark [class*="border-[#e8dfd1]"],
-html.dark [class*="border-[#e2d6c3]"],
-html.dark [class*="border-[#d6caba]"],
-html.dark [class*="border-[#e8dfd3]"],
-html.dark [class*="border-[#d4af37]"] {
+.dark .border-\[\#e8dfd1\],
+.dark .border-\[\#e2d6c3\],
+.dark .border-\[\#d6caba\],
+.dark .border-\[\#e8dfd3\],
+.dark .border-\[\#e8dfd3\]\/90,
+.dark .border-\[\#d4af37\]\/40,
+.dark .border-\[\#d6c7b0\],
+.dark .border-\[\#d8ccb8\],
+.dark .border-\[\#ddcfbb\],
+.dark .border-\[\#e2d4c0\],
+.dark .border-\[\#f3eadc\],
+.dark .border-\[\#f0e6d6\],
+.dark .border-\[\#cebfab\] {
   border-color: #2d2924 !important;
 }
 
-html.dark [class*="border-[#fde68a]"] {
+.dark .border-\[\#fde68a\] {
   border-color: #5c3c15 !important;
 }
 
-/* Typography & Text */
-html.dark [class*="text-[#1f1c19]"],
-html.dark .text-\[\#1f1c19\] {
+/* Text Colors */
+.dark .text-\[\#1f1c19\],
+.dark .text-\[\#2a241e\] {
   color: #f5efe6 !important;
 }
 
-html.dark [class*="text-[#2b2621]"],
-html.dark .text-\[\#2b2621\] {
+.dark .text-\[\#2b2621\] {
   color: #e4dcd1 !important;
 }
 
-html.dark [class*="text-[#3b342e]"],
-html.dark [class*="text-[#423b33]"] {
+.dark .text-\[\#3b342e\],
+.dark .text-\[\#423b33\],
+.dark .text-\[\#574c3e\] {
   color: #cac0b3 !important;
 }
 
-html.dark [class*="text-[#574e44]"],
-html.dark .text-\[\#574e44\] {
+.dark .text-\[\#574e44\],
+.dark .text-\[\#6b5f50\] {
   color: #aba092 !important;
 }
 
-html.dark [class*="text-[#786b59]"],
-html.dark .text-\[\#786b59\] {
+.dark .text-\[\#786b59\] {
   color: #9d9283 !important;
 }
 
-html.dark [class*="text-[#8c7e6c]"],
-html.dark .text-\[\#8c7e6c\] {
+.dark .text-\[\#8c7e6c\],
+.dark .text-\[\#8c8274\] {
   color: #8c8172 !important;
 }
 
-html.dark [class*="text-[#92400e]"],
-html.dark [class*="text-[#78350f]"] {
+.dark .text-\[\#92400e\],
+.dark .text-\[\#78350f\],
+.dark .text-\[\#9c4221\] {
   color: #fbbf24 !important;
 }
 
-/* Text selections & inputs in dark mode */
-html.dark ::selection {
-  background-color: #78350f;
-  color: #fef3c7;
-}
-
-html.dark input,
-html.dark textarea,
-html.dark select {
+/* Inputs & Forms */
+.dark input,
+.dark textarea,
+.dark select {
   color: #f5efe6 !important;
+  background-color: #1d1a17 !important;
   border-color: #2d2924 !important;
 }
 
-html.dark input::placeholder,
-html.dark textarea::placeholder {
+.dark input::placeholder,
+.dark textarea::placeholder {
   color: #756a5c !important;
 }
 
-/* Modal and Drawer backdrop */
-html.dark .backdrop-blur-xs {
-  background-color: rgba(0, 0, 0, 0.65) !important;
+/* Constellation Watermark in Portal Card */
+.dark .text-\[\#e8dfd1\]\/35 {
+  color: rgba(245, 158, 11, 0.08) !important;
+}
+
+/* Selection */
+.dark ::selection {
+  background-color: #78350f;
+  color: #fef3c7;
 }
