@@ -4,14 +4,9 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Sparkles,
-  ShieldCheck,
   Check,
   Copy,
-  Clock,
-  ArrowRight,
-  TrendingDown,
-  X,
-  BookOpen
+  X
 } from "lucide-react";
 import { ArticleDigest } from "@/lib/summarizer";
 
@@ -30,95 +25,78 @@ export default function AiDigestCard({
 
   const handleCopy = () => {
     const text = [
-      `Summary of: ${articleTitle}`,
+      `AI Digest: ${articleTitle}`,
       "",
-      `Core Thesis:`,
+      `Summary:`,
       digest.coreThesis,
       "",
       `Key Takeaways:`,
-      ...digest.keyTakeaways.map((t, i) => `${i + 1}. ${t}`),
-      "",
-      `Extracted via Small Web Reader (On-Device Private NLP)`
+      ...digest.keyTakeaways.map((t, i) => `${i + 1}. ${t}`)
     ].join("\n");
 
     navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -15, scale: 0.98 }}
+      initial={{ opacity: 0, y: -12, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -15, scale: 0.98 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-2xl bg-[#fdfaf5] border border-[#d4af37]/40 shadow-md p-6 space-y-5 font-serif text-[#1f1c19] relative overflow-hidden"
+      exit={{ opacity: 0, y: -12, scale: 0.99 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="rounded-2xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md p-5 space-y-4 font-serif text-[#1f1c19] relative overflow-hidden"
     >
-      {/* Subtle Warm Amber Glow Gradient */}
-      <div className="absolute top-0 right-0 w-64 h-32 bg-gradient-to-bl from-[#b45309]/10 to-transparent pointer-events-none rounded-tr-2xl" />
-
-      {/* Header with Title and Privacy Badge */}
-      <div className="flex items-start justify-between gap-3 relative z-10">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a] text-[10px] font-mono font-bold uppercase tracking-wider">
-              <Sparkles className="w-3 h-3 text-[#b45309]" />
-              AI Executive Digest
-            </span>
-
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#dcfce7] text-[#166534] border border-[#bbf7d0] text-[10px] font-mono font-medium">
-              <ShieldCheck className="w-3 h-3 text-[#16a34a]" />
-              On-Device NLP • Zero Cloud Leakage
-            </span>
+      {/* Top Header: Simple and Clean */}
+      <div className="flex items-center justify-between pb-3 border-b border-[#e8dfd1]">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-[#b45309] text-white flex items-center justify-center shadow-2xs">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
-
-          <h3 className="font-serif font-bold text-base text-[#1f1c19] mt-1">
-            30-Second Synthesis
+          <h3 className="font-serif font-bold text-sm text-[#1f1c19]">
+            AI Digest
           </h3>
         </div>
 
         <div className="flex items-center gap-1.5">
           <button
             onClick={handleCopy}
-            className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white hover:bg-[#f4ece1] text-[#574e44] text-xs font-mono transition-colors flex items-center gap-1"
+            className="px-2.5 py-1 rounded-lg border border-[#e2d6c3] bg-white hover:bg-[#f4ece1] text-[#574e44] text-xs font-mono transition-colors flex items-center gap-1.5"
             title="Copy summary to clipboard"
           >
             {copied ? (
               <>
                 <Check className="w-3.5 h-3.5 text-[#16a34a]" />
-                <span className="text-[10px] text-[#16a34a] font-bold">Copied</span>
+                <span className="text-[11px] text-[#16a34a] font-bold">Copied</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span className="text-[10px] hidden sm:inline">Copy</span>
+                <span className="text-[11px]">Copy</span>
               </>
             )}
           </button>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#8c7e6c] hover:text-[#1f1c19] hover:bg-[#f4ece1] transition-colors"
-            title="Dismiss digest"
+            className="p-1 rounded-lg text-[#8c7e6c] hover:text-[#1f1c19] hover:bg-[#f4ece1] transition-colors"
+            title="Close digest"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Core Thesis Card */}
-      <div className="p-4 rounded-xl bg-[#f5ede2]/80 border-l-4 border-[#b45309] border-y border-r border-[#e2d6c3] space-y-1 relative z-10">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-[#92400e] font-bold block">
-          Central Thesis
-        </span>
-        <p className="font-serif italic text-sm text-[#2b2621] leading-relaxed">
-          "{digest.coreThesis}"
+      {/* Main Core Thesis / Summary Box */}
+      <div className="p-3.5 rounded-xl bg-[#f4ece1]/80 border-l-4 border-[#b45309] border-y border-r border-[#e2d6c3]">
+        <p className="font-serif text-sm text-[#2b2621] leading-relaxed">
+          {digest.coreThesis}
         </p>
       </div>
 
-      {/* 3 Key Takeaways */}
-      <div className="space-y-2.5 relative z-10">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-[#786b59] font-bold block">
+      {/* Key Takeaways */}
+      <div className="space-y-2 pt-1">
+        <span className="text-[11px] font-mono uppercase tracking-wider text-[#786b59] font-bold block">
           Key Takeaways
         </span>
 
@@ -126,7 +104,7 @@ export default function AiDigestCard({
           {digest.keyTakeaways.map((takeaway, idx) => (
             <li
               key={idx}
-              className="flex items-start gap-2.5 text-xs text-[#423b33] leading-relaxed"
+              className="flex items-start gap-2.5 text-xs text-[#3b342e] leading-relaxed"
             >
               <span className="w-5 h-5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a] text-[10px] font-mono font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                 {idx + 1}
@@ -135,34 +113,6 @@ export default function AiDigestCard({
             </li>
           ))}
         </ul>
-      </div>
-
-      {/* Bottom Metrics Bar */}
-      <div className="pt-3 border-t border-[#e8dfd1] flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-[#786b59] relative z-10">
-        {/* Topics Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] uppercase text-[#8c7e6c]">Keywords:</span>
-          {digest.keyTopics.map(topic => (
-            <span
-              key={topic}
-              className="px-2 py-0.5 rounded-md bg-[#f4ece1] text-[#78350f] text-[10px] font-medium border border-[#e2d6c3]"
-            >
-              #{topic}
-            </span>
-          ))}
-        </div>
-
-        {/* Time Saved Metric */}
-        <div className="flex items-center gap-3 text-[11px]">
-          <span className="flex items-center gap-1 text-[#b45309] font-bold">
-            <Clock className="w-3.5 h-3.5" />
-            <span>~{digest.readingTimeSavedMinutes}m saved</span>
-          </span>
-          <span className="text-[#d6caba]">•</span>
-          <span className="text-[#8c7e6c]">
-            {digest.reductionPercentage}% condensed
-          </span>
-        </div>
       </div>
 
     </motion.div>

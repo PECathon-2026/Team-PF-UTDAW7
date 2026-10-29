@@ -27,7 +27,9 @@ import {
   ChevronRight,
   Orbit,
   Moon,
-  Headphones
+  Headphones,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import ConstellationGraph from "@/components/graph/ConstellationGraph";
 import ListenModePlayer from "@/components/reader/ListenModePlayer";
@@ -194,6 +196,9 @@ export default function ReaderDashboard() {
   // On-Device AI Digest State
   const [isAiDigestOpen, setIsAiDigestOpen] = useState(false);
   const [cachedDigest, setCachedDigest] = useState<ArticleDigest | null>(null);
+
+  // Reader Full Screen Toggle State
+  const [isReaderFullscreen, setIsReaderFullscreen] = useState(false);
 
   // Change 1: Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
@@ -381,6 +386,7 @@ export default function ReaderDashboard() {
     setActiveSpeechParagraph(0);
     setIsAiDigestOpen(false);
     setCachedDigest(null);
+    setIsReaderFullscreen(false);
     setSelectedArticle(null);
   };
 
@@ -1179,7 +1185,9 @@ export default function ReaderDashboard() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="w-full max-w-2xl bg-[#fbf8f2] h-full shadow-2xl flex flex-col justify-between border-l border-[#e8dfd1] cursor-default"
+              className={`bg-[#fbf8f2] h-full shadow-2xl flex flex-col justify-between border-l border-[#e8dfd1] cursor-default transition-all duration-300 ${
+                isReaderFullscreen ? "w-full max-w-full" : "w-full max-w-2xl"
+              }`}
             >
               
               {/* Drawer Top Header Controls */}
@@ -1198,7 +1206,7 @@ export default function ReaderDashboard() {
                         ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
                         : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
                     }`}
-                    title="30-Second AI Executive Digest (100% On-Device NLP)"
+                    title="AI Digest"
                   >
                     <Sparkles className={`w-3.5 h-3.5 ${isAiDigestOpen ? "text-amber-200" : "text-[#b45309]"}`} />
                     <span>{isAiDigestOpen ? "Digest" : "AI Digest"}</span>
@@ -1245,9 +1253,23 @@ export default function ReaderDashboard() {
                     {fontSize === "normal" ? "A" : fontSize === "large" ? "A+" : "A++"}
                   </button>
 
+                  {/* Fullscreen Reading Mode Toggle */}
+                  <button
+                    onClick={() => setIsReaderFullscreen(f => !f)}
+                    className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono hover:bg-[#f3ecdf] text-[#574e44] transition-colors"
+                    title={isReaderFullscreen ? "Exit full screen view" : "Expand to full screen"}
+                  >
+                    {isReaderFullscreen ? (
+                      <Minimize2 className="w-4 h-4 text-[#b45309]" />
+                    ) : (
+                      <Maximize2 className="w-4 h-4 text-[#574e44]" />
+                    )}
+                  </button>
+
                   <button
                     onClick={handleCloseReadingDrawer}
-                    className="w-8 h-8 rounded-full bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f] flex items-center justify-center text-xs font-bold transition-colors ml-2"
+                    className="w-8 h-8 rounded-full bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f] flex items-center justify-center text-xs font-bold transition-colors ml-1"
+                    title="Close reading view"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1261,112 +1283,118 @@ export default function ReaderDashboard() {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
+                    className="overflow-hidden border-b border-[#e8dfd1] bg-[#f9f5ed]"
                   >
-                    <ListenModePlayer
-                      paragraphs={currentArticleParagraphs}
-                      activeParagraphIndex={activeSpeechParagraph}
-                      onParagraphChange={setActiveSpeechParagraph}
-                      onPlayingChange={setIsSpeechPlaying}
-                      onClose={() => {
-                        setIsListenModeActive(false);
-                        setIsSpeechPlaying(false);
-                      }}
-                    />
+                    <div className={isReaderFullscreen ? "max-w-3xl mx-auto px-4" : ""}>
+                      <ListenModePlayer
+                        paragraphs={currentArticleParagraphs}
+                        activeParagraphIndex={activeSpeechParagraph}
+                        onParagraphChange={setActiveSpeechParagraph}
+                        onPlayingChange={setIsSpeechPlaying}
+                        onClose={() => {
+                          setIsListenModeActive(false);
+                          setIsSpeechPlaying(false);
+                        }}
+                      />
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Reader Body Content */}
-              <div className="flex-1 overflow-y-auto px-8 sm:px-12 py-10 space-y-6">
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">
-                    {selectedArticle.category}
-                  </span>
-                  <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#1f1c19] mt-2.5 leading-tight">
-                    {selectedArticle.title}
-                  </h1>
-                  <p className="font-mono text-xs text-[#8c7e6c] mt-3">
-                    By <strong className="text-[#1f1c19]">{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
-                  </p>
-                </div>
+              <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-10">
+                <div className={`space-y-6 ${isReaderFullscreen ? "max-w-3xl mx-auto w-full transition-all duration-300" : ""}`}>
+                  <div>
+                    <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">
+                      {selectedArticle.category}
+                    </span>
+                    <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#1f1c19] mt-2.5 leading-tight">
+                      {selectedArticle.title}
+                    </h1>
+                    <p className="font-mono text-xs text-[#8c7e6c] mt-3">
+                      By <strong className="text-[#1f1c19]">{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
+                    </p>
+                  </div>
 
-                {/* On-Device AI Executive Digest Card */}
-                <AnimatePresence>
-                  {isAiDigestOpen && cachedDigest && (
-                    <AiDigestCard
-                      digest={cachedDigest}
-                      articleTitle={selectedArticle.title}
-                      onClose={() => setIsAiDigestOpen(false)}
+                  {/* On-Device AI Executive Digest Card */}
+                  <AnimatePresence>
+                    {isAiDigestOpen && cachedDigest && (
+                      <AiDigestCard
+                        digest={cachedDigest}
+                        articleTitle={selectedArticle.title}
+                        onClose={() => setIsAiDigestOpen(false)}
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  <hr className="border-[#e8dfd1]" />
+
+                  {/* Article Prose with Active Speech Highlighting */}
+                  {isListenModeActive ? (
+                    <div
+                      className={`leading-relaxed text-[#2b2621] space-y-4 ${
+                        fontFamily === "serif" ? "font-serif" : "font-sans"
+                      } ${
+                        fontSize === "normal"
+                          ? "text-base"
+                          : fontSize === "large"
+                          ? "text-lg"
+                          : "text-xl leading-loose"
+                      }`}
+                    >
+                      {currentArticleParagraphs.map((para, pIdx) => (
+                        <div
+                          key={pIdx}
+                          onClick={() => setActiveSpeechParagraph(pIdx)}
+                          className={`transition-all duration-300 rounded-xl p-3.5 -mx-3.5 cursor-pointer relative ${
+                            activeSpeechParagraph === pIdx
+                              ? "bg-[#fef3c7] border-l-4 border-[#b45309] shadow-xs text-[#1f1c19] font-medium"
+                              : "hover:bg-[#f4ece1]/60 text-[#423b33]"
+                          }`}
+                          title="Click to listen from this paragraph"
+                        >
+                          {activeSpeechParagraph === pIdx && isSpeechPlaying && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#b45309] font-bold uppercase tracking-wider mb-1 block">
+                              <Headphones className="w-3 h-3 animate-pulse" /> Speaking now
+                            </span>
+                          )}
+                          <p>{para}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className={`leading-relaxed text-[#2b2621] space-y-5 ${
+                        fontFamily === "serif" ? "font-serif" : "font-sans"
+                      } ${
+                        fontSize === "normal"
+                          ? "text-base"
+                          : fontSize === "large"
+                          ? "text-lg"
+                          : "text-xl leading-loose"
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
                     />
                   )}
-                </AnimatePresence>
-
-                <hr className="border-[#e8dfd1]" />
-
-                {/* Article Prose with Active Speech Highlighting */}
-                {isListenModeActive ? (
-                  <div
-                    className={`leading-relaxed text-[#2b2621] space-y-4 ${
-                      fontFamily === "serif" ? "font-serif" : "font-sans"
-                    } ${
-                      fontSize === "normal"
-                        ? "text-base"
-                        : fontSize === "large"
-                        ? "text-lg"
-                        : "text-xl leading-loose"
-                    }`}
-                  >
-                    {currentArticleParagraphs.map((para, pIdx) => (
-                      <div
-                        key={pIdx}
-                        onClick={() => setActiveSpeechParagraph(pIdx)}
-                        className={`transition-all duration-300 rounded-xl p-3.5 -mx-3.5 cursor-pointer relative ${
-                          activeSpeechParagraph === pIdx
-                            ? "bg-[#fef3c7] border-l-4 border-[#b45309] shadow-xs text-[#1f1c19] font-medium"
-                            : "hover:bg-[#f4ece1]/60 text-[#423b33]"
-                        }`}
-                        title="Click to listen from this paragraph"
-                      >
-                        {activeSpeechParagraph === pIdx && isSpeechPlaying && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#b45309] font-bold uppercase tracking-wider mb-1 block">
-                            <Headphones className="w-3 h-3 animate-pulse" /> Speaking now
-                          </span>
-                        )}
-                        <p>{para}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div
-                    className={`leading-relaxed text-[#2b2621] space-y-5 ${
-                      fontFamily === "serif" ? "font-serif" : "font-sans"
-                    } ${
-                      fontSize === "normal"
-                        ? "text-base"
-                        : fontSize === "large"
-                        ? "text-lg"
-                        : "text-xl leading-loose"
-                    }`}
-                    dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
-                  />
-                )}
+                </div>
               </div>
 
               {/* Drawer Bottom Bar */}
               <div className="h-14 border-t border-[#e8dfd1] px-6 flex items-center justify-between text-xs font-serif text-[#786b59] bg-[#f4ece1]/80">
-                <span className="font-mono text-[11px] text-[#8c7e6c]">
-                  Saved to your local offline library
-                </span>
-                <a
-                  href={selectedArticle.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 text-[#b45309] font-medium hover:underline"
-                >
-                  <span>Open Original Source</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                <div className={`w-full flex items-center justify-between ${isReaderFullscreen ? "max-w-3xl mx-auto" : ""}`}>
+                  <span className="font-mono text-[11px] text-[#8c7e6c]">
+                    Saved to your local offline library
+                  </span>
+                  <a
+                    href={selectedArticle.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 text-[#b45309] font-medium hover:underline"
+                  >
+                    <span>Open Original Source</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
               </div>
 
             </motion.div>
