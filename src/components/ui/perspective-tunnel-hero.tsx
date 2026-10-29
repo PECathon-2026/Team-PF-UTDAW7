@@ -330,9 +330,9 @@ export default function PerspectiveTunnelHero() {
                     </div>
                     <Link
                         href="/reader"
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1f1c19] text-[#fbf8f2] hover:bg-[#38332c] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#b45309] text-white hover:bg-[#92400e] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm shadow-[#b45309]/20"
                     >
-                        Enter Library <ArrowRight className="w-3.5 h-3.5" />
+                        Get Started <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                 </div>
             </header>
@@ -365,24 +365,23 @@ export default function PerspectiveTunnelHero() {
                     A calm, offline-first sanctuary for longform thinkers, digital gardens, and indie blogs. Discovered through human reader overlap, never corporate tracking.
                 </p>
 
-                {/* Action Buttons that reveal during scroll travel */}
-                <motion.div
-                    style={{ opacity: actionsOpacity }}
-                    className="pointer-events-auto mt-8 flex flex-wrap items-center justify-center gap-3.5"
+                {/* Primary Action Buttons: Always visible & clickable */}
+                <div
+                    className="pointer-events-auto mt-7 flex flex-wrap items-center justify-center gap-3.5 z-20"
                 >
                     <Link
                         href="/reader"
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm transition-all shadow-md shadow-[#b45309]/20 hover:scale-105"
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm transition-all shadow-md shadow-[#b45309]/20 hover:scale-105"
                     >
-                        <BookOpen className="w-4 h-4 text-white" /> Open Personal Timeline
+                        <span>Get Started</span> <ArrowRight className="w-4 h-4 text-white" />
                     </Link>
                     <Link
                         href="/discover"
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-[#d6caba] text-[#1f1c19] font-serif font-medium text-sm hover:border-[#b45309]/60 hover:bg-[#faf5eb] transition-all"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#fffdfa]/90 backdrop-blur-sm border border-[#d6caba] text-[#1f1c19] font-serif font-medium text-sm hover:border-[#b45309]/60 hover:bg-[#faf5eb] transition-all"
                     >
                         <Compass className="w-4 h-4 text-[#b45309]" /> Anonymous Discovery
                     </Link>
-                </motion.div>
+                </div>
             </motion.div>
 
             {/* Warm Quill Scroll Prompt */}
