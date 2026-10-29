@@ -354,6 +354,16 @@ export default function PerspectiveTunnelHero() {
                 <p className="mt-5 max-w-[44ch] text-sm sm:text-base font-serif text-[#574e44] leading-relaxed">
                     A calm, offline-first sanctuary for longform thinkers, digital gardens, and indie blogs. Discovered through human reader overlap, never corporate tracking.
                 </p>
+
+                {/* Centered Immediate Action Button */}
+                <div className="pointer-events-auto mt-8 flex justify-center z-20">
+                    <Link
+                        href="/reader"
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm transition-all shadow-md shadow-[#b45309]/20 hover:scale-105"
+                    >
+                        <span>Get Started</span> <ArrowRight className="w-4 h-4 text-white" />
+                    </Link>
+                </div>
             </motion.div>
 
             {/* Warm Quill Scroll Prompt */}
