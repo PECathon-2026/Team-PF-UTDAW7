@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:backend": "npx tsx scripts/test-backend.mjs"
   },
   "dependencies": {
+    "@prisma/client": "^7.10.1",
+    "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.1.1",
     "framer-motion": "^14.7.1",
     "lucide-react": "^1.64.0",
@@ -24,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "prisma": "^8.0.0-rc.28",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

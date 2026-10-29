@@ -1,0 +1,47 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Feed {
+  id            String   @id @default(cuid())
+  normalizedUrl String   @unique @map("normalized_url")
+  originalUrl   String   @map("original_url")
+  siteUrl       String?  @map("site_url")
+  title         String
+  description   String?
+  category      String   @default("Indie Web")
+  popularity    Int      @default(1)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([popularity(sort: Desc)])
+  @@map("feeds")
+}
+
+model CoSubscription {
+  feedA     String   @map("feed_a")
+  feedB     String   @map("feed_b")
+  weight    Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([feedA, feedB])
+  @@index([feedA])
+  @@index([feedB])
+  @@index([weight(sort: Desc)])
+  @@map("co_subscriptions")
+}
+
+model SubmissionRateLimit {
+  ipHash          String   @id @map("ip_hash")
+  submissionCount Int      @default(1) @map("submission_count")
+  lastSubmittedAt DateTime @default(now()) @map("last_submitted_at")
+  expiresAt       DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("submission_rate_limits")
+}
