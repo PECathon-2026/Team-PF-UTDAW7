@@ -34,6 +34,7 @@ import {
 import ConstellationGraph from "@/components/graph/ConstellationGraph";
 import ListenModePlayer from "@/components/reader/ListenModePlayer";
 import AiDigestCard from "@/components/reader/AiDigestCard";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import { generateOnDeviceDigest, ArticleDigest } from "@/lib/summarizer";
 
 interface Article {
@@ -492,6 +493,8 @@ export default function ReaderDashboard() {
 
         {/* Top Right Controls (Changes 3, 4, 5) */}
         <div className="flex items-center gap-3">
+          {/* Global Dark / Light Theme Toggle */}
+          <ThemeToggle />
           
           {/* Change 3: Saved Posts Top Right Column / Dropdown */}
           <div className="relative" ref={savedDropdownRef}>

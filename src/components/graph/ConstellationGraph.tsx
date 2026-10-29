@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "@/context/ThemeContext";
 import {
   Orbit,
   Sparkles,
@@ -197,6 +198,10 @@ export default function ConstellationGraph({
   onClose,
   isFullScreenModal = false
 }: ConstellationGraphProps) {
+  const { isDark } = useTheme();
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -410,6 +415,8 @@ export default function ConstellationGraph({
     ctx.save();
     ctx.scale(dpr, dpr);
 
+    const isNight = isDarkRef.current;
+
     // 1. Warm Editorial Vellum Ambient Lighting Gradient
     const vellumGrad = ctx.createRadialGradient(
       width / 2,
@@ -419,15 +426,21 @@ export default function ConstellationGraph({
       height / 2,
       Math.max(width, height) * 0.75
     );
-    vellumGrad.addColorStop(0, "#fdfbf7");
-    vellumGrad.addColorStop(0.55, "#f8f3ea");
-    vellumGrad.addColorStop(1, "#f1e6d7");
+    if (isNight) {
+      vellumGrad.addColorStop(0, "#191614");
+      vellumGrad.addColorStop(0.55, "#131110");
+      vellumGrad.addColorStop(1, "#0a0908");
+    } else {
+      vellumGrad.addColorStop(0, "#fdfbf7");
+      vellumGrad.addColorStop(0.55, "#f8f3ea");
+      vellumGrad.addColorStop(1, "#f1e6d7");
+    }
     ctx.fillStyle = vellumGrad;
     ctx.fillRect(0, 0, width, height);
 
     // 2. Architectural Blueprint Grid & Metric Crosshairs
     ctx.save();
-    ctx.strokeStyle = "rgba(226, 214, 195, 0.45)";
+    ctx.strokeStyle = isNight ? "rgba(217, 119, 6, 0.08)" : "rgba(226, 214, 195, 0.45)";
     ctx.lineWidth = 1;
     const gridStep = 48;
     for (let x = 0; x <= width; x += gridStep) {
@@ -444,7 +457,7 @@ export default function ConstellationGraph({
     }
 
     // Grid Crosshairs at major intersections
-    ctx.fillStyle = "rgba(180, 83, 9, 0.25)";
+    ctx.fillStyle = isNight ? "rgba(245, 158, 11, 0.2)" : "rgba(180, 83, 9, 0.25)";
     for (let x = gridStep * 2; x < width; x += gridStep * 2) {
       for (let y = gridStep * 2; y < height; y += gridStep * 2) {
         ctx.fillRect(x - 3, y - 0.5, 6, 1);
@@ -458,7 +471,9 @@ export default function ConstellationGraph({
       const sx = ((speck.x * width + Math.sin(time + speck.phase) * 15) % width + width) % width;
       const sy = ((speck.y * height + time * speck.speed * 180) % height + height) % height;
       const a = speck.alpha + Math.sin(time * 1.5 + speck.phase) * 0.08;
-      ctx.fillStyle = `rgba(180, 83, 9, ${Math.max(0.04, a)})`;
+      ctx.fillStyle = isNight
+        ? `rgba(245, 158, 11, ${Math.max(0.06, a * 1.2)})`
+        : `rgba(180, 83, 9, ${Math.max(0.04, a)})`;
       ctx.beginPath();
       ctx.arc(sx, sy, speck.size, 0, Math.PI * 2);
       ctx.fill();
@@ -478,14 +493,16 @@ export default function ConstellationGraph({
     ringRadii.forEach((r, idx) => {
       ctx.beginPath();
       ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
-      ctx.strokeStyle = idx % 2 === 0 ? "rgba(180, 83, 9, 0.18)" : "rgba(214, 202, 186, 0.45)";
+      ctx.strokeStyle = isNight
+        ? (idx % 2 === 0 ? "rgba(245, 158, 11, 0.16)" : "rgba(85, 76, 65, 0.45)")
+        : (idx % 2 === 0 ? "rgba(180, 83, 9, 0.18)" : "rgba(214, 202, 186, 0.45)");
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 6]);
       ctx.stroke();
     });
 
     // Cardinal Axes with Subtle Degree Marks
-    ctx.strokeStyle = "rgba(180, 83, 9, 0.12)";
+    ctx.strokeStyle = isNight ? "rgba(245, 158, 11, 0.1)" : "rgba(180, 83, 9, 0.12)";
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 5]);
     ctx.beginPath();
@@ -497,12 +514,12 @@ export default function ConstellationGraph({
 
     // Subtle Cartographic Typography Watermark
     ctx.font = "italic 11px serif";
-    ctx.fillStyle = "rgba(180, 83, 9, 0.14)";
+    ctx.fillStyle = isNight ? "rgba(245, 158, 11, 0.18)" : "rgba(180, 83, 9, 0.14)";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("SMALL WEB CONSTELLATION MAP • DECENTRALIZED TOPOLOGY", centerX, centerY - 14);
     ctx.font = "9px monospace";
-    ctx.fillStyle = "rgba(120, 107, 89, 0.2)";
+    ctx.fillStyle = isNight ? "rgba(168, 159, 145, 0.25)" : "rgba(120, 107, 89, 0.2)";
     ctx.fillText("LATENCY-FREE • ZERO TRACKING • CO-SUBSCRIPTION GRAVITY", centerX, centerY + 10);
     ctx.restore();
 
@@ -526,14 +543,14 @@ export default function ConstellationGraph({
 
       if (isConnectedToHovered || isConnectedToSelected) {
         // Highlighting thread in warm honey amber
-        ctx.strokeStyle = "#b45309";
+        ctx.strokeStyle = isNight ? "#fbbf24" : "#b45309";
         ctx.lineWidth = 2.5;
-        ctx.globalAlpha = 0.9;
+        ctx.globalAlpha = 0.95;
       } else {
         // Subtle warm linen line
-        ctx.strokeStyle = "#d6caba";
+        ctx.strokeStyle = isNight ? "#423b32" : "#d6caba";
         ctx.lineWidth = Math.max(1, (edge.overlap / 100) * 2);
-        ctx.globalAlpha = 0.55;
+        ctx.globalAlpha = isNight ? 0.45 : 0.55;
       }
       ctx.stroke();
 
@@ -547,8 +564,8 @@ export default function ConstellationGraph({
         const textWidth = ctx.measureText(pillText).width;
 
         // Pill background
-        ctx.fillStyle = "#fdfaf5";
-        ctx.strokeStyle = "#b45309";
+        ctx.fillStyle = isNight ? "#221f1c" : "#fdfaf5";
+        ctx.strokeStyle = isNight ? "#fbbf24" : "#b45309";
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.roundRect(midX - textWidth / 2 - 8, midY - 9, textWidth + 16, 18, 9);
@@ -556,7 +573,7 @@ export default function ConstellationGraph({
         ctx.stroke();
 
         // Pill text in deep warm amber
-        ctx.fillStyle = "#92400e";
+        ctx.fillStyle = isNight ? "#fbbf24" : "#92400e";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(pillText, midX, midY);
@@ -587,7 +604,7 @@ export default function ConstellationGraph({
           node.y,
           radius + 10 + pulse
         );
-        glowGrad.addColorStop(0, "rgba(180, 83, 9, 0.25)");
+        glowGrad.addColorStop(0, isNight ? "rgba(245, 158, 11, 0.35)" : "rgba(180, 83, 9, 0.25)");
         glowGrad.addColorStop(1, "rgba(180, 83, 9, 0)");
 
         ctx.beginPath();
@@ -602,22 +619,30 @@ export default function ConstellationGraph({
 
       if (node.isSubscribed) {
         // Subscribed: Warm honey amber fill with crisp darker border
-        ctx.fillStyle = isSelected || isHovered ? "#fef3c7" : "#ffedd5";
+        ctx.fillStyle = isNight
+          ? (isSelected || isHovered ? "#3d2b17" : "#282119")
+          : (isSelected || isHovered ? "#fef3c7" : "#ffedd5");
         ctx.fill();
-        ctx.strokeStyle = "#b45309";
+        ctx.strokeStyle = isNight ? (isSelected ? "#fbbf24" : "#b45309") : "#b45309";
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.stroke();
       } else {
         // Recommended: Clean warm paper white with linen border
-        ctx.fillStyle = isSelected || isHovered ? "#fef8ee" : "#ffffff";
+        ctx.fillStyle = isNight
+          ? (isSelected || isHovered ? "#2e2417" : "#1e1b18")
+          : (isSelected || isHovered ? "#fef8ee" : "#ffffff");
         ctx.fill();
-        ctx.strokeStyle = isSelected || isHovered ? "#b45309" : "#d6caba";
+        ctx.strokeStyle = isNight
+          ? (isSelected || isHovered ? "#fbbf24" : "#3d362e")
+          : (isSelected || isHovered ? "#b45309" : "#d6caba");
         ctx.lineWidth = isSelected ? 2.5 : 1.8;
         ctx.stroke();
       }
 
       // Initial Letter inside circle
-      ctx.fillStyle = node.isSubscribed ? "#92400e" : "#574e44";
+      ctx.fillStyle = node.isSubscribed
+        ? (isNight ? "#fde68a" : "#92400e")
+        : (isNight ? "#cfc5b6" : "#574e44");
       ctx.font = `bold ${Math.round(radius * 0.85)}px serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -625,7 +650,9 @@ export default function ConstellationGraph({
 
       // Node Name Label (Below Circle)
       ctx.font = isSelected || isHovered ? "bold 12px serif" : "11px serif";
-      ctx.fillStyle = isSelected || isHovered ? "#b45309" : "#1f1c19";
+      ctx.fillStyle = isSelected || isHovered
+        ? (isNight ? "#fbbf24" : "#b45309")
+        : (isNight ? "#f5efe6" : "#1f1c19");
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillText(node.name, node.x, node.y + radius + 7);
@@ -633,7 +660,7 @@ export default function ConstellationGraph({
       // Domain subtitle for hovered / selected
       if (isHovered || isSelected) {
         ctx.font = "9px monospace";
-        ctx.fillStyle = "#8c7e6c";
+        ctx.fillStyle = isNight ? "#a89f91" : "#8c7e6c";
         ctx.fillText(node.domain, node.x, node.y + radius + 23);
       }
     });

@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Compass, ArrowRight, Feather, Coffee, Sparkles, ChevronDown } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 interface BlogCardItem {
     src: string;
@@ -375,7 +376,8 @@ export default function PerspectiveTunnelHero() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3">
+                    <ThemeToggle />
                     <Link
                         href="/reader"
                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#b45309] text-white hover:bg-[#92400e] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm shadow-[#b45309]/20"

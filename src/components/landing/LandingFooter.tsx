@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BookOpen, Compass, ArrowRight, Heart, Wifi, Shield, GitBranch } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function LandingFooter() {
   return (
@@ -105,7 +106,8 @@ export default function LandingFooter() {
         {/* Bottom copyright */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-[#241f1c] text-[10px] font-mono text-[#786f63]">
           <div>PECathon 2026 • Punjab Engineering College</div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <ThemeToggle showLabel />
             <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-[#22c55e]" /> SSRF Protected</span>
             <span className="flex items-center gap-1"><Wifi className="w-3 h-3 text-[#fde68a]" /> Offline Capable</span>
           </div>
