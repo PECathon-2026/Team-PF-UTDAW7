@@ -39,6 +39,15 @@ export interface GraphEdge {
   overlap: number; // 0 to 100 percentage
 }
 
+interface AmbientSpeck {
+  x: number;
+  y: number;
+  size: number;
+  alpha: number;
+  speed: number;
+  phase: number;
+}
+
 const DEFAULT_NODES: GraphNode[] = [
   {
     id: "marginalian",
@@ -201,11 +210,28 @@ export default function ConstellationGraph({
   // Simulation refs
   const nodesRef = useRef<GraphNode[]>([]);
   const edgesRef = useRef<GraphEdge[]>(DEFAULT_EDGES);
+  const specksRef = useRef<AmbientSpeck[]>([]);
   const animationFrameId = useRef<number | null>(null);
   const isDraggingNode = useRef<GraphNode | null>(null);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const mouseScreenPos = useRef({ x: 0, y: 0 });
+
+  // Initialize ambient paper specks
+  useEffect(() => {
+    const specks: AmbientSpeck[] = [];
+    for (let i = 0; i < 40; i++) {
+      specks.push({
+        x: Math.random(),
+        y: Math.random(),
+        size: Math.random() * 2 + 1,
+        alpha: Math.random() * 0.22 + 0.1,
+        speed: Math.random() * 0.0008 + 0.0004,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    specksRef.current = specks;
+  }, []);
 
   // Escape key handler to close
   useEffect(() => {
@@ -384,25 +410,101 @@ export default function ConstellationGraph({
     ctx.save();
     ctx.scale(dpr, dpr);
 
-    // Warm Editorial Paper Background (#fbf8f2)
-    ctx.fillStyle = "#fbf8f2";
+    // 1. Warm Editorial Vellum Ambient Lighting Gradient
+    const vellumGrad = ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      60,
+      width / 2,
+      height / 2,
+      Math.max(width, height) * 0.75
+    );
+    vellumGrad.addColorStop(0, "#fdfbf7");
+    vellumGrad.addColorStop(0.55, "#f8f3ea");
+    vellumGrad.addColorStop(1, "#f1e6d7");
+    ctx.fillStyle = vellumGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle Architectural Grid Dots (Modern Editorial Texture)
+    // 2. Architectural Blueprint Grid & Metric Crosshairs
     ctx.save();
-    ctx.fillStyle = "#e5dcce";
-    const dotSpacing = 36;
-    for (let x = dotSpacing / 2; x < width; x += dotSpacing) {
-      for (let y = dotSpacing / 2; y < height; y += dotSpacing) {
-        ctx.fillRect(x, y, 1.2, 1.2);
+    ctx.strokeStyle = "rgba(226, 214, 195, 0.45)";
+    ctx.lineWidth = 1;
+    const gridStep = 48;
+    for (let x = 0; x <= width; x += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= height; y += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    // Grid Crosshairs at major intersections
+    ctx.fillStyle = "rgba(180, 83, 9, 0.25)";
+    for (let x = gridStep * 2; x < width; x += gridStep * 2) {
+      for (let y = gridStep * 2; y < height; y += gridStep * 2) {
+        ctx.fillRect(x - 3, y - 0.5, 6, 1);
+        ctx.fillRect(x - 0.5, y - 3, 1, 6);
       }
     }
     ctx.restore();
+
+    // 3. Floating Ambient Amber Specks
+    specksRef.current.forEach(speck => {
+      const sx = ((speck.x * width + Math.sin(time + speck.phase) * 15) % width + width) % width;
+      const sy = ((speck.y * height + time * speck.speed * 180) % height + height) % height;
+      const a = speck.alpha + Math.sin(time * 1.5 + speck.phase) * 0.08;
+      ctx.fillStyle = `rgba(180, 83, 9, ${Math.max(0.04, a)})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, speck.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
     // Apply User Zoom & Pan Transformation
     ctx.save();
     ctx.translate(pan.x, pan.y);
     ctx.scale(zoomLevel, zoomLevel);
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // 4. Astrolabe Celestial Orbit Guide Rings (In Graph World Coordinates)
+    ctx.save();
+    const ringRadii = [120, 230, 350, 480];
+    ringRadii.forEach((r, idx) => {
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+      ctx.strokeStyle = idx % 2 === 0 ? "rgba(180, 83, 9, 0.18)" : "rgba(214, 202, 186, 0.45)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 6]);
+      ctx.stroke();
+    });
+
+    // Cardinal Axes with Subtle Degree Marks
+    ctx.strokeStyle = "rgba(180, 83, 9, 0.12)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 5]);
+    ctx.beginPath();
+    ctx.moveTo(centerX - 550, centerY);
+    ctx.lineTo(centerX + 550, centerY);
+    ctx.moveTo(centerX, centerY - 550);
+    ctx.lineTo(centerX, centerY + 550);
+    ctx.stroke();
+
+    // Subtle Cartographic Typography Watermark
+    ctx.font = "italic 11px serif";
+    ctx.fillStyle = "rgba(180, 83, 9, 0.14)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("SMALL WEB CONSTELLATION MAP • DECENTRALIZED TOPOLOGY", centerX, centerY - 14);
+    ctx.font = "9px monospace";
+    ctx.fillStyle = "rgba(120, 107, 89, 0.2)";
+    ctx.fillText("LATENCY-FREE • ZERO TRACKING • CO-SUBSCRIPTION GRAVITY", centerX, centerY + 10);
+    ctx.restore();
 
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
