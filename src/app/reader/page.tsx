@@ -240,7 +240,7 @@ export default function ReaderDashboard() {
       prev.map(a => {
         if (a.id === id) {
           const nextState = !a.saved;
-          triggerToast(nextState ? "Saved to garden" : "Removed from saved");
+          triggerToast(nextState ? "Blog Saved" : "Blog Removed");
           return { ...a, saved: nextState };
         }
         return a;
@@ -947,14 +947,16 @@ export default function ReaderDashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-xs flex justify-end z-50"
+            onClick={() => setSelectedArticle(null)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs flex justify-end z-50 cursor-pointer"
           >
             <motion.div
+              onClick={e => e.stopPropagation()}
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="w-full max-w-2xl bg-[#fbf8f2] h-full shadow-2xl flex flex-col justify-between border-l border-[#e8dfd1]"
+              className="w-full max-w-2xl bg-[#fbf8f2] h-full shadow-2xl flex flex-col justify-between border-l border-[#e8dfd1] cursor-default"
             >
               
               {/* Drawer Top Header Controls */}
