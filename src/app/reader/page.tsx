@@ -23,6 +23,8 @@ import {
   Rss,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   ChevronLeft,
   ChevronRight,
   Orbit,
@@ -203,10 +205,15 @@ export default function ReaderDashboard() {
   // Reader Full Screen Toggle State
   const [isReaderFullscreen, setIsReaderFullscreen] = useState(false);
 
-  // Change 1: Resizable Sidebar State
+  // Change 1: Resizable Left Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const isResizingRef = useRef(false);
+
+  // Right Telemetry Sidebar State
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+  const isRightResizingRef = useRef(false);
 
   // Change 3: Saved Posts Dropdown State
   const [isSavedDropdownOpen, setIsSavedDropdownOpen] = useState(false);
@@ -219,18 +226,26 @@ export default function ReaderDashboard() {
   // Change 6: Subscriptions Category Dropdown State
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
 
-  // Resize Sidebar Event Listeners
+  // Resize Sidebars (Left & Right) Event Listeners
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current) return;
-      const newWidth = Math.min(Math.max(e.clientX, 200), 420);
-      setSidebarWidth(newWidth);
+      if (isResizingRef.current) {
+        const newWidth = Math.min(Math.max(e.clientX, 200), 420);
+        setSidebarWidth(newWidth);
+      }
+      if (isRightResizingRef.current) {
+        const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, 240), 480);
+        setRightSidebarWidth(newWidth);
+      }
     };
 
     const handleMouseUp = () => {
-      isResizingRef.current = false;
-      document.body.style.cursor = "default";
-      document.body.style.userSelect = "auto";
+      if (isResizingRef.current || isRightResizingRef.current) {
+        isResizingRef.current = false;
+        isRightResizingRef.current = false;
+        document.body.style.cursor = "default";
+        document.body.style.userSelect = "auto";
+      }
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -1052,25 +1067,85 @@ export default function ReaderDashboard() {
           </div>
         </main>
 
+        {/* Floating Expand Button when Right Sidebar is Collapsed (Icon Only) */}
+        {isRightSidebarCollapsed && (
+          <button
+            onClick={() => setIsRightSidebarCollapsed(false)}
+            className={`hidden xl:flex absolute right-4 top-4 z-30 p-2 rounded-xl shadow-md transition-all items-center justify-center group ${
+              isDark
+                ? "bg-[#181614] border border-[#2d2924] text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#25211c]"
+                : "bg-[#fdfaf5] border border-[#e2d6c3] text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1]"
+            }`}
+            title="Expand telemetry sidebar"
+          >
+            <PanelRightOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform" />
+          </button>
+        )}
+
         {/* 3. RIGHT SIDEBAR (Telemetry & Reading Focus) */}
-        <aside className="w-80 border-l border-[#e8dfd1] bg-[#f7f2e8]/40 p-6 flex flex-col justify-between hidden xl:flex overflow-y-auto space-y-6">
-          
-          {/* Weekly Reading Chart */}
-          <div className="bg-[#fdfaf5] border border-[#e8dfd1] rounded-2xl p-5 shadow-xs space-y-4">
-            <h4 className="font-serif font-bold text-sm text-[#1f1c19]">Reading Telemetry</h4>
+        <aside
+          style={{ width: isRightSidebarCollapsed ? 0 : `${rightSidebarWidth}px` }}
+          className={`border-l flex flex-col justify-between hidden xl:flex relative select-none transition-all duration-300 ease-in-out ${
+            isDark ? "border-[#2d2924] bg-[#161413]" : "border-[#e8dfd1] bg-[#f7f2e8]/40"
+          } ${
+            isRightSidebarCollapsed
+              ? "!w-0 !p-0 !border-l-0 overflow-hidden opacity-0 pointer-events-none"
+              : "p-6 overflow-y-auto opacity-100 space-y-6"
+          }`}
+        >
+          {/* Draggable Resize Handle on Left Edge of Right Sidebar */}
+          <div
+            onMouseDown={() => {
+              isRightResizingRef.current = true;
+              document.body.style.cursor = "col-resize";
+              document.body.style.userSelect = "none";
+            }}
+            className="absolute top-0 left-0 w-2 h-full cursor-col-resize hover:bg-[#b45309]/30 transition-colors group z-20 flex items-center justify-center"
+            title="Drag to resize telemetry sidebar"
+          >
+            <div className={`w-0.5 h-8 rounded-full group-hover:bg-[#b45309] ${isDark ? "bg-[#38332c]" : "bg-[#d6caba]"}`} />
+          </div>
+
+          {/* Telemetry Header with Collapse Action */}
+          <div className="flex items-center justify-between pb-1 px-1">
+            <span className={`text-[10px] font-mono uppercase tracking-wider font-bold ${
+              isDark ? "text-[#a89d8f]" : "text-[#8c7e6c]"
+            }`}>
+              Reading Telemetry
+            </span>
+            <button
+              onClick={() => setIsRightSidebarCollapsed(true)}
+              className={`p-1 rounded-md transition-colors ${
+                isDark
+                  ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#25211c]"
+                  : "text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#ebdcc8]/50"
+              }`}
+              title="Collapse telemetry sidebar"
+            >
+              <PanelRightClose className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Weekly Reading Chart Card */}
+          <div className={`rounded-2xl p-5 shadow-xs space-y-4 border transition-colors ${
+            isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e8dfd1] text-[#1f1c19]"
+          }`}>
+            <h4 className={`font-serif font-bold text-sm ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Weekly Activity</h4>
             
-            <div className="grid grid-cols-3 text-center border-b border-[#e8dfd1] pb-3 font-serif">
+            <div className={`grid grid-cols-3 text-center border-b pb-3 font-serif ${
+              isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"
+            }`}>
               <div>
-                <div className="text-xl font-bold text-[#1f1c19]">12</div>
-                <div className="text-[10px] font-mono text-[#8c7e6c]">essays read</div>
+                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>12</div>
+                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>essays read</div>
               </div>
               <div>
-                <div className="text-xl font-bold text-[#1f1c19]">{savedTotal}</div>
-                <div className="text-[10px] font-mono text-[#8c7e6c]">saved</div>
+                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>{savedTotal}</div>
+                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>saved</div>
               </div>
               <div>
                 <div className="text-xl font-bold text-[#b45309]">3h 24m</div>
-                <div className="text-[10px] font-mono text-[#8c7e6c]">deep time</div>
+                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>deep time</div>
               </div>
             </div>
 
@@ -1090,10 +1165,16 @@ export default function ReaderDashboard() {
                     className={`w-4 rounded-t transition-all ${
                       bar.active
                         ? "bg-[#b45309] shadow-xs"
+                        : isDark
+                        ? "bg-[#2d2924] hover:bg-[#38332c]"
                         : "bg-[#e2d6c3] hover:bg-[#d6caba]"
                     } ${bar.h}`}
                   />
-                  <span className={`text-[9px] font-mono ${bar.active ? "font-bold text-[#b45309]" : "text-[#8c7e6c]"}`}>
+                  <span className={`text-[9px] font-mono ${
+                    bar.active
+                      ? "font-bold text-[#b45309]"
+                      : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
+                  }`}>
                     {bar.day}
                   </span>
                 </div>
@@ -1104,8 +1185,8 @@ export default function ReaderDashboard() {
           {/* Continue Reading Cards */}
           <div className="space-y-3">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-serif font-bold text-[#1f1c19]">Continue Reading</span>
-              <span className="font-mono text-[10px] text-[#8c7e6c]">2 in progress</span>
+              <span className={`font-serif font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Continue Reading</span>
+              <span className={`font-mono text-[10px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>2 in progress</span>
             </div>
 
             <div className="space-y-2">
@@ -1113,12 +1194,18 @@ export default function ReaderDashboard() {
                 <div
                   key={a.id}
                   onClick={() => setSelectedArticle(a)}
-                  className="p-2.5 rounded-xl bg-[#fdfaf5] border border-[#e8dfd1] hover:border-[#b45309]/50 flex items-center gap-3 cursor-pointer transition-all shadow-xs"
+                  className={`p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all shadow-xs ${
+                    isDark
+                      ? "bg-[#181614] border-[#2d2924] hover:border-[#fbbf24]/50"
+                      : "bg-[#fdfaf5] border-[#e8dfd1] hover:border-[#b45309]/50"
+                  }`}
                 >
                   <img src={a.image} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" alt="" />
                   <div className="flex-1 truncate">
-                    <h5 className="font-serif text-xs font-semibold truncate text-[#1f1c19]">{a.title}</h5>
-                    <p className="font-mono text-[10px] text-[#8c7e6c]">{a.blogName} • 4 min left</p>
+                    <h5 className={`font-serif text-xs font-semibold truncate ${
+                      isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                    }`}>{a.title}</h5>
+                    <p className={`font-mono text-[10px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>{a.blogName} • 4 min left</p>
                   </div>
                 </div>
               ))}
@@ -1126,9 +1213,13 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Quote Card */}
-          <div className="p-4 rounded-2xl bg-[#fdfaf5] border border-[#e8dfd1] space-y-2 shadow-xs">
+          <div className={`p-4 rounded-2xl border space-y-2 shadow-xs ${
+            isDark ? "bg-[#181614] border-[#2d2924]" : "bg-[#fdfaf5] border-[#e8dfd1]"
+          }`}>
             <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
-            <p className="font-serif text-xs italic text-[#574e44] leading-relaxed">
+            <p className={`font-serif text-xs italic leading-relaxed ${
+              isDark ? "text-[#aba092]" : "text-[#574e44]"
+            }`}>
               "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
             </p>
           </div>
