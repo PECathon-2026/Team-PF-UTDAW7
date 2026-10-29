@@ -26,9 +26,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Orbit,
-  Moon
+  Moon,
+  Headphones
 } from "lucide-react";
 import ConstellationGraph from "@/components/graph/ConstellationGraph";
+import ListenModePlayer from "@/components/reader/ListenModePlayer";
 
 interface Article {
   id: string;
@@ -181,6 +183,11 @@ export default function ReaderDashboard() {
   // Mystic Mikado Constellation State
   const [viewMode, setViewMode] = useState<"timeline" | "graph">("timeline");
   const [isConstellationModalOpen, setIsConstellationModalOpen] = useState(false);
+
+  // Listen Mode (TTS Audio Player) State
+  const [isListenModeActive, setIsListenModeActive] = useState(false);
+  const [activeSpeechParagraph, setActiveSpeechParagraph] = useState(0);
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState(false);
 
   // Change 1: Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
@@ -338,6 +345,35 @@ export default function ReaderDashboard() {
       setSelectedArticle(newArticle);
       triggerToast(`Opening: ${title}`);
     }
+  };
+
+  // Helper to extract clean paragraphs for Listen Mode (TTS)
+  const getArticleParagraphs = (html: string): string[] => {
+    if (!html) return [];
+    return html
+      .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, "$1\n")
+      .replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .split("\n")
+      .map(p => p.trim())
+      .filter(p => p.length > 5);
+  };
+
+  const currentArticleParagraphs = selectedArticle
+    ? getArticleParagraphs(selectedArticle.content)
+    : [];
+
+  const handleCloseReadingDrawer = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeechPlaying(false);
+    setIsListenModeActive(false);
+    setActiveSpeechParagraph(0);
+    setSelectedArticle(null);
   };
 
   // Unique categories for dropdown filter
@@ -1114,7 +1150,7 @@ export default function ReaderDashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setSelectedArticle(null)}
+            onClick={handleCloseReadingDrawer}
             className="fixed inset-0 bg-black/40 backdrop-blur-xs flex justify-end z-50 cursor-pointer"
           >
             <motion.div
@@ -1134,6 +1170,29 @@ export default function ReaderDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Listen Mode Toggle Button */}
+                  <button
+                    onClick={() => {
+                      const nextState = !isListenModeActive;
+                      setIsListenModeActive(nextState);
+                      if (!nextState && typeof window !== "undefined" && "speechSynthesis" in window) {
+                        window.speechSynthesis.cancel();
+                        setIsSpeechPlaying(false);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-serif transition-colors ${
+                      isListenModeActive
+                        ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
+                        : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
+                    }`}
+                    title="Listen to essay aloud (TTS Audio)"
+                  >
+                    <Headphones className="w-3.5 h-3.5" />
+                    <span>{isListenModeActive ? "Listening" : "Listen"}</span>
+                  </button>
+
+                  <div className="h-4 w-px bg-[#d6caba] mx-0.5 hidden sm:block" />
+
                   <button
                     onClick={() => setFontFamily(f => (f === "serif" ? "sans" : "serif"))}
                     className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono hover:bg-[#f3ecdf] text-[#574e44]"
@@ -1153,13 +1212,36 @@ export default function ReaderDashboard() {
                   </button>
 
                   <button
-                    onClick={() => setSelectedArticle(null)}
+                    onClick={handleCloseReadingDrawer}
                     className="w-8 h-8 rounded-full bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f] flex items-center justify-center text-xs font-bold transition-colors ml-2"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
+
+              {/* Expandable Listen Mode Audio Bar */}
+              <AnimatePresence>
+                {isListenModeActive && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <ListenModePlayer
+                      paragraphs={currentArticleParagraphs}
+                      activeParagraphIndex={activeSpeechParagraph}
+                      onParagraphChange={setActiveSpeechParagraph}
+                      onPlayingChange={setIsSpeechPlaying}
+                      onClose={() => {
+                        setIsListenModeActive(false);
+                        setIsSpeechPlaying(false);
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Reader Body Content */}
               <div className="flex-1 overflow-y-auto px-8 sm:px-12 py-10 space-y-6">
@@ -1177,19 +1259,53 @@ export default function ReaderDashboard() {
 
                 <hr className="border-[#e8dfd1]" />
 
-                {/* Article Prose */}
-                <div
-                  className={`leading-relaxed text-[#2b2621] space-y-5 ${
-                    fontFamily === "serif" ? "font-serif" : "font-sans"
-                  } ${
-                    fontSize === "normal"
-                      ? "text-base"
-                      : fontSize === "large"
-                      ? "text-lg"
-                      : "text-xl leading-loose"
-                  }`}
-                  dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
-                />
+                {/* Article Prose with Active Speech Highlighting */}
+                {isListenModeActive ? (
+                  <div
+                    className={`leading-relaxed text-[#2b2621] space-y-4 ${
+                      fontFamily === "serif" ? "font-serif" : "font-sans"
+                    } ${
+                      fontSize === "normal"
+                        ? "text-base"
+                        : fontSize === "large"
+                        ? "text-lg"
+                        : "text-xl leading-loose"
+                    }`}
+                  >
+                    {currentArticleParagraphs.map((para, pIdx) => (
+                      <div
+                        key={pIdx}
+                        onClick={() => setActiveSpeechParagraph(pIdx)}
+                        className={`transition-all duration-300 rounded-xl p-3.5 -mx-3.5 cursor-pointer relative ${
+                          activeSpeechParagraph === pIdx
+                            ? "bg-[#fef3c7] border-l-4 border-[#b45309] shadow-xs text-[#1f1c19] font-medium"
+                            : "hover:bg-[#f4ece1]/60 text-[#423b33]"
+                        }`}
+                        title="Click to listen from this paragraph"
+                      >
+                        {activeSpeechParagraph === pIdx && isSpeechPlaying && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#b45309] font-bold uppercase tracking-wider mb-1 block">
+                            <Headphones className="w-3 h-3 animate-pulse" /> Speaking now
+                          </span>
+                        )}
+                        <p>{para}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className={`leading-relaxed text-[#2b2621] space-y-5 ${
+                      fontFamily === "serif" ? "font-serif" : "font-sans"
+                    } ${
+                      fontSize === "normal"
+                        ? "text-base"
+                        : fontSize === "large"
+                        ? "text-lg"
+                        : "text-xl leading-loose"
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+                  />
+                )}
               </div>
 
               {/* Drawer Bottom Bar */}
