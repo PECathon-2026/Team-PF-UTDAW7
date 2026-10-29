@@ -24,8 +24,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Share2
 } from "lucide-react";
+import ConstellationGraph from "@/components/graph/ConstellationGraph";
 
 interface Article {
   id: string;
@@ -175,6 +177,9 @@ export default function ReaderDashboard() {
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Bonus Innovation 1: Constellation Graph View Mode
+  const [viewMode, setViewMode] = useState<"timeline" | "graph">("timeline");
+
   // Change 1: Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -271,6 +276,66 @@ export default function ReaderDashboard() {
     setNewFeedUrl("");
     setIsAddFeedModalOpen(false);
     triggerToast(`Feed autodiscovered & subscribed: ${cleanName}`);
+  };
+
+  const handleGraphSubscribe = (name: string, domain: string) => {
+    const existing = subscriptions.find(s => s.name.toLowerCase() === name.toLowerCase());
+    if (!existing) {
+      const newSub: Subscription = {
+        id: "graph-" + Date.now(),
+        name,
+        category: "Indie Web",
+        unreadCount: 1,
+        initial: name.charAt(0).toUpperCase(),
+        color: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]"
+      };
+      setSubscriptions(prev => [newSub, ...prev]);
+      triggerToast(`Subscribed to ${name} via Graph Discovery`);
+    } else {
+      triggerToast(`Already subscribed to ${name}`);
+    }
+  };
+
+  const handleGraphOpenArticle = (title: string, author: string) => {
+    const existing = articles.find(
+      a => a.title.toLowerCase() === title.toLowerCase() || a.blogName.toLowerCase() === author.toLowerCase()
+    );
+    if (existing) {
+      setSelectedArticle(existing);
+      markAsRead(existing.id);
+    } else {
+      const newArticle: Article = {
+        id: "graph-art-" + Date.now(),
+        blogId: author.toLowerCase().replace(/\s+/g, ""),
+        blogName: author,
+        category: "Graph Recommended",
+        title,
+        excerpt: `An insightful independent essay by ${author}, discovered through decentralized co-subscription graph clustering.`,
+        content: `
+          <p class="lead font-serif italic text-lg text-[#574e44] mb-6">
+            Discovered via Small Web reader constellation analysis with ~80%+ peer co-subscription overlap.
+          </p>
+          <p class="mb-5 leading-relaxed">
+            This piece was authored by <strong>${author}</strong> and indexed into the local offline library. The Small Web network highlights works that readers of similar intellectual gardens frequently bookmark together.
+          </p>
+          <blockquote class="border-l-2 border-[#b45309] pl-4 my-6 italic text-[#786b59] font-serif">
+            "The best discoveries happen not through opaque commercial algorithms, but through serendipitous neighborhood graphs."
+          </blockquote>
+          <p class="mb-5 leading-relaxed">
+            All assets are served with zero third-party telemetry, sanitized HTML rendering, and stored directly in your local IndexedDB client sandbox.
+          </p>
+        `,
+        readTime: "5 min read",
+        date: "Discovered today",
+        unread: false,
+        saved: true,
+        image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+        url: `https://${author.toLowerCase().replace(/\s+/g, "")}.com`
+      };
+      setArticles(prev => [newArticle, ...prev]);
+      setSelectedArticle(newArticle);
+      triggerToast(`Opening: ${title}`);
+    }
   };
 
   // Unique categories for dropdown filter
@@ -482,9 +547,9 @@ export default function ReaderDashboard() {
             {/* Primary Nav Links */}
             <div className="space-y-1 text-xs">
               <button
-                onClick={() => { setActiveTab("all"); setSelectedBlogId(null); }}
+                onClick={() => { setViewMode("timeline"); setActiveTab("all"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "all" && !selectedBlogId
+                  viewMode === "timeline" && activeTab === "all" && !selectedBlogId
                     ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                     : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
@@ -498,9 +563,9 @@ export default function ReaderDashboard() {
               </button>
 
               <button
-                onClick={() => { setActiveTab("unread"); setSelectedBlogId(null); }}
+                onClick={() => { setViewMode("timeline"); setActiveTab("unread"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "unread"
+                  viewMode === "timeline" && activeTab === "unread"
                     ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                     : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
@@ -510,6 +575,22 @@ export default function ReaderDashboard() {
                 </span>
                 <span className="text-[10px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold">
                   {unreadTotal}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setViewMode("graph")}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                  viewMode === "graph"
+                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <Share2 className="w-4 h-4 text-[#b45309]" /> Constellation
+                </span>
+                <span className="text-[9px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold border border-[#fde68a]">
+                  Bonus
                 </span>
               </button>
             </div>
@@ -573,6 +654,7 @@ export default function ReaderDashboard() {
                     onClick={() => {
                       setSelectedBlogId(sub.id === selectedBlogId ? null : sub.id);
                       setActiveTab("all");
+                      setViewMode("timeline");
                     }}
                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-serif transition-colors ${
                       selectedBlogId === sub.id
@@ -630,15 +712,17 @@ export default function ReaderDashboard() {
           </button>
         )}
 
-        {/* 2. CENTER FEED (Chronological Timeline) */}
+        {/* 2. CENTER FEED (Chronological Timeline or Constellation Graph) */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-[#fbf8f2]">
-          <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
+          <div className={`p-6 sm:p-8 mx-auto w-full space-y-6 ${viewMode === "graph" ? "max-w-6xl" : "max-w-4xl"}`}>
             
             {/* Header Title & Actions */}
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
               <div>
                 <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
-                  {selectedBlogId
+                  {viewMode === "graph"
+                    ? "Constellation Graph."
+                    : selectedBlogId
                     ? subscriptions.find(s => s.id === selectedBlogId)?.name
                     : activeTab === "unread"
                     ? "Unread Collection"
@@ -647,25 +731,67 @@ export default function ReaderDashboard() {
                     : "Personal Timeline."}
                 </h2>
                 <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
-                  Latest writings from your curated library. Sorted purely by chronologic delivery.
+                  {viewMode === "graph"
+                    ? "Interactive 2D physics graph discovering co-subscription proximity clusters across the small web."
+                    : "Latest writings from your curated library. Sorted purely by chronologic delivery."}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-[#8c7e6c]">
-                  {filteredArticles.length} essays
-                </span>
-                <button
-                  onClick={markAllRead}
-                  className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
-                >
-                  Mark all read
-                </button>
+              {/* View Switcher Toggle & Actions */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Segmented View Mode Control */}
+                <div className="flex items-center p-1 rounded-xl bg-[#f4ece1] border border-[#e2d6c3] shadow-2xs">
+                  <button
+                    onClick={() => setViewMode("timeline")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-serif font-medium transition-all ${
+                      viewMode === "timeline"
+                        ? "bg-[#fdfaf5] text-[#b45309] shadow-xs font-bold"
+                        : "text-[#786b59] hover:text-[#1f1c19]"
+                    }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Timeline</span>
+                  </button>
+
+                  <button
+                    onClick={() => setViewMode("graph")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-serif font-medium transition-all ${
+                      viewMode === "graph"
+                        ? "bg-[#fdfaf5] text-[#b45309] shadow-xs font-bold"
+                        : "text-[#786b59] hover:text-[#1f1c19]"
+                    }`}
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-[#b45309]" />
+                    <span>Constellation</span>
+                    <span className="hidden sm:inline-block text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
+                      Bonus
+                    </span>
+                  </button>
+                </div>
+
+                {viewMode === "timeline" && (
+                  <>
+                    <span className="text-xs font-mono text-[#8c7e6c] hidden sm:inline">
+                      {filteredArticles.length} essays
+                    </span>
+                    <button
+                      onClick={markAllRead}
+                      className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
+                    >
+                      Mark all read
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Articles Feed */}
-            {filteredArticles.length === 0 ? (
+            {/* View Mode Rendering: Graph or Articles Feed */}
+            {viewMode === "graph" ? (
+              <ConstellationGraph
+                onSubscribeFeed={handleGraphSubscribe}
+                onOpenArticle={handleGraphOpenArticle}
+              />
+            ) : filteredArticles.length === 0 ? (
               <div className="py-20 text-center space-y-3">
                 <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
                 <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
