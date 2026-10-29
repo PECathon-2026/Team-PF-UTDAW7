@@ -24,8 +24,32 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2,
+  Download,
+  Upload,
 } from "lucide-react";
+
+import {
+  autodiscoverFeedUrl,
+  parseFeedXml,
+  ParsedArticle,
+} from "@/lib/client/feedParser";
+import { extractFullArticle } from "@/lib/client/articleExtractor";
+import {
+  loadStoredSubscriptions,
+  saveStoredSubscriptions,
+  loadStoredArticles,
+  saveStoredArticles,
+  StoredSubscription,
+  syncAnonymousDiscoveryIfOptedIn,
+} from "@/lib/client/storage";
+import {
+  exportToOpml,
+  parseOpml,
+  triggerOpmlDownload,
+} from "@/lib/client/opml";
+import DiscoveryView from "@/components/reader/DiscoveryView";
 
 interface Article {
   id: string;
@@ -37,6 +61,7 @@ interface Article {
   content: string;
   readTime: string;
   date: string;
+  publishedAt?: number;
   unread: boolean;
   saved: boolean;
   image: string;
@@ -47,17 +72,64 @@ interface Subscription {
   id: string;
   name: string;
   category: string;
+  feedUrl?: string;
+  siteUrl?: string;
   unreadCount: number;
   initial: string;
   color: string;
 }
 
 const INITIAL_SUBSCRIPTIONS: Subscription[] = [
-  { id: "marginalian", name: "The Marginalian", category: "Culture", unreadCount: 6, initial: "M", color: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]" },
-  { id: "alistapart", name: "A List Apart", category: "Design", unreadCount: 4, initial: "A", color: "bg-[#e0f2fe] text-[#075985] border-[#bae6fd]" },
-  { id: "stratechery", name: "Stratechery", category: "Business", unreadCount: 3, initial: "S", color: "bg-[#ffedd5] text-[#9a3412] border-[#fed7aa]" },
-  { id: "danluu", name: "Dan Luu", category: "Systems", unreadCount: 2, initial: "D", color: "bg-[#f3e8ff] text-[#6b21a8] border-[#e9d5ff]" },
-  { id: "jvns", name: "Julia Evans", category: "Systems", unreadCount: 5, initial: "J", color: "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]" }
+  {
+    id: "marginalian",
+    name: "The Marginalian",
+    category: "Culture",
+    feedUrl: "https://themarginalian.org/feed",
+    siteUrl: "https://themarginalian.org",
+    unreadCount: 6,
+    initial: "M",
+    color: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]",
+  },
+  {
+    id: "alistapart",
+    name: "A List Apart",
+    category: "Design",
+    feedUrl: "https://alistapart.com/main/feed",
+    siteUrl: "https://alistapart.com",
+    unreadCount: 4,
+    initial: "A",
+    color: "bg-[#e0f2fe] text-[#075985] border-[#bae6fd]",
+  },
+  {
+    id: "stratechery",
+    name: "Stratechery",
+    category: "Business",
+    feedUrl: "https://stratechery.com/feed",
+    siteUrl: "https://stratechery.com",
+    unreadCount: 3,
+    initial: "S",
+    color: "bg-[#ffedd5] text-[#9a3412] border-[#fed7aa]",
+  },
+  {
+    id: "danluu",
+    name: "Dan Luu",
+    category: "Systems",
+    feedUrl: "https://danluu.com/atom.xml",
+    siteUrl: "https://danluu.com",
+    unreadCount: 2,
+    initial: "D",
+    color: "bg-[#f3e8ff] text-[#6b21a8] border-[#e9d5ff]",
+  },
+  {
+    id: "jvns",
+    name: "Julia Evans",
+    category: "Systems",
+    feedUrl: "https://jvns.ca/atom.xml",
+    siteUrl: "https://jvns.ca",
+    unreadCount: 5,
+    initial: "J",
+    color: "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]",
+  },
 ];
 
 const INITIAL_ARTICLES: Article[] = [
@@ -90,7 +162,7 @@ const INITIAL_ARTICLES: Article[] = [
     unread: true,
     saved: true,
     image: "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=800&q=80",
-    url: "https://themarginalian.org/art-of-craft"
+    url: "https://themarginalian.org/art-of-craft",
   },
   {
     id: "2",
@@ -115,58 +187,86 @@ const INITIAL_ARTICLES: Article[] = [
     unread: true,
     saved: true,
     image: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80",
-    url: "https://danluu.com/input-latency"
+    url: "https://danluu.com/input-latency",
   },
   {
     id: "3",
     blogId: "alistapart",
     blogName: "A List Apart",
-    category: "Design Systems",
-    title: "What Happens When We Design for the Decade, Not the Sprint?",
-    excerpt: "Interfaces built on human dignity, durable typographic hierarchy, and respectful departures instead of addictive friction.",
+    category: "Web & Design Craft",
+    title: "The Humane Interface: Designing for Sustained Attention",
+    excerpt: "The modern web has traded typographic dignity for infinite scrolls. How return-oriented document design reclaims reader agency and focus.",
     content: `
       <p class="lead font-serif italic text-lg text-[#574e44] mb-6">
-        Great interface design is polite: it welcomes you in, provides clear value, and lets you leave without resistance.
+        The modern web has traded typographic dignity for infinite scrolls. How return-oriented document design reclaims reader agency.
       </p>
       <p class="mb-5 leading-relaxed">
-        The design language of the modern platform web is hostile. It seeks to trap your gaze, obscure close buttons, and introduce deceptive confirmations. Designing for durability means prioritizing clarity over artificial retention.
+        When we examine the history of book design, every physical proportion—from the golden ratio of page margins to the choice of leaded typefaces—was calibrated to minimize optical fatigue. A printed codex had a defined beginning, a tactile midpoint, and a physical terminus.
+      </p>
+      <p class="mb-5 leading-relaxed">
+        By contrast, feed-driven interfaces are deliberately architected to eliminate endpoints. They induce a mild dissociative state where the reader searches indefinitely for closure that never arrives.
       </p>
     `,
     readTime: "8 min read",
     date: "Yesterday",
     unread: false,
-    saved: false,
-    image: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=800&q=80",
-    url: "https://alistapart.com/decade-design"
+    saved: true,
+    image: "https://images.unsplash.com/photo-1507842229451-7f01be7fe8e0?auto=format&fit=crop&w=800&q=80",
+    url: "https://alistapart.com/humane-interface",
   },
   {
     id: "4",
-    blogId: "jvns",
-    blogName: "Julia Evans",
-    category: "Systems & Architecture",
-    title: "Understanding How Packet Traversal and DNS Caching Actually Work",
-    excerpt: "Visualizing the 5 distinct caching layers that resolve domain queries before packets leave your laptop's wireless network interface.",
+    blogId: "stratechery",
+    blogName: "Stratechery",
+    category: "Aggregation & Markets",
+    title: "The Consolidation of Attention and the Sovereign Reader",
+    excerpt: "Analyzing how centralized social platforms commoditized independent publishing, and why direct peer protocols are reclaiming audience trust.",
     content: `
       <p class="lead font-serif italic text-lg text-[#574e44] mb-6">
-        Here are the exact 5 layers of DNS caching that keep the web running smoothly.
+        Analyzing how centralized social platforms commoditized independent publishing, and why direct peer protocols are reclaiming trust.
       </p>
       <p class="mb-5 leading-relaxed">
-        Whenever you query a domain, your browser checks its internal in-memory cache, your operating system's resolver cache, your local router's DNS cache, your ISP's recursive resolver, and finally authoritative root nameservers.
+        Aggregation Theory demonstrates that when distribution costs fall to zero, power shifts from suppliers to the aggregators who control discovery. For fifteen years, publishers surrendered their direct relationship with audiences in exchange for algorithm-mediated traffic.
+      </p>
+      <p class="mb-5 leading-relaxed">
+        That bargain has collapsed. As platforms degrade organic reach to force paid amplification, the direct, unmediated RSS feed has re-emerged as the most resilient publishing format on the internet.
+      </p>
+    `,
+    readTime: "15 min read",
+    date: "2 days ago",
+    unread: false,
+    saved: false,
+    image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80",
+    url: "https://stratechery.com/sovereign-reader",
+  },
+  {
+    id: "5",
+    blogId: "jvns",
+    blogName: "Julia Evans",
+    category: "Systems & Internals",
+    title: "Demystifying DNS Resolution: What Actually Happens on Query",
+    excerpt: "A visual deep-dive through recursive resolvers, root name servers, and caching layers that make every web request possible.",
+    content: `
+      <p class="lead font-serif italic text-lg text-[#574e44] mb-6">
+        A visual deep-dive through recursive resolvers, root name servers, and caching layers.
+      </p>
+      <p class="mb-5 leading-relaxed">
+        When you type a domain name into your browser, an entire cascade of distributed lookups executes in milliseconds. From checking your local OS resolver cache to querying the 13 root server clusters, understanding DNS transforms it from an intimidating black box into an elegant cooperative protocol.
       </p>
     `,
     readTime: "5 min read",
-    date: "2 days ago",
+    date: "3 days ago",
     unread: true,
     saved: true,
     image: "https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=800&q=80",
-    url: "https://jvns.ca/dns-layers"
-  }
+    url: "https://jvns.ca/dns-layers",
+  },
 ];
 
 export default function ReaderDashboard() {
   const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
-  const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved" | "discover">("all");
   const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -175,21 +275,54 @@ export default function ReaderDashboard() {
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Change 1: Resizable Sidebar State
+  // Loading States
+  const [isAddingFeed, setIsAddingFeed] = useState(false);
+  const [isExtractingArticle, setIsExtractingArticle] = useState(false);
+
+  // Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const isResizingRef = useRef(false);
 
-  // Change 3: Saved Posts Dropdown State
+  // Saved Posts Dropdown State
   const [isSavedDropdownOpen, setIsSavedDropdownOpen] = useState(false);
   const savedDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Change 5: Clean Add Feed Modal State
+  // Add Feed Modal State
   const [isAddFeedModalOpen, setIsAddFeedModalOpen] = useState(false);
   const [newFeedUrl, setNewFeedUrl] = useState("");
 
-  // Change 6: Subscriptions Category Dropdown State
+  // Subscriptions Category Dropdown State
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
+
+  // File input ref for OPML import
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 1. Initial Load: Load local offline cache & route detection
+  useEffect(() => {
+    const storedSubs = loadStoredSubscriptions(INITIAL_SUBSCRIPTIONS as any);
+    const storedArts = loadStoredArticles(INITIAL_ARTICLES as any);
+
+    if (storedSubs && storedSubs.length > 0) {
+      setSubscriptions(storedSubs as any);
+    }
+    if (storedArts && storedArts.length > 0) {
+      setArticles(storedArts as any);
+    }
+
+    if (typeof window !== "undefined" && window.location.pathname.includes("/discover")) {
+      setActiveTab("discover");
+    }
+  }, []);
+
+  // 2. Persist state updates to local cache (Task E: Offline-first)
+  useEffect(() => {
+    saveStoredSubscriptions(subscriptions as any);
+  }, [subscriptions]);
+
+  useEffect(() => {
+    saveStoredArticles(articles as any);
+  }, [articles]);
 
   // Resize Sidebar Event Listeners
   useEffect(() => {
@@ -226,7 +359,7 @@ export default function ReaderDashboard() {
 
   const triggerToast = (msg: string) => {
     setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 3500);
   };
 
   const markAsRead = (id: string, e?: React.MouseEvent) => {
@@ -240,7 +373,7 @@ export default function ReaderDashboard() {
       prev.map(a => {
         if (a.id === id) {
           const nextState = !a.saved;
-          triggerToast(nextState ? "Blog Saved" : "Blog Removed");
+          triggerToast(nextState ? "Essay Saved" : "Essay Removed");
           return { ...a, saved: nextState };
         }
         return a;
@@ -253,24 +386,153 @@ export default function ReaderDashboard() {
     triggerToast("All articles marked as read");
   };
 
-  const handleAddFeedSubmit = (e?: React.FormEvent) => {
+  // Real Add Feed Handler with Autodiscovery and CORS Fetch
+  const handleAddFeedSubmit = async (e?: React.FormEvent, customUrl?: string) => {
     if (e) e.preventDefault();
-    if (!newFeedUrl.trim()) return;
+    const entered = (customUrl || newFeedUrl).trim();
+    if (!entered || isAddingFeed) return;
 
-    const entered = newFeedUrl.trim();
-    const cleanName = entered.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
-    const newSub: Subscription = {
-      id: "custom-" + Date.now(),
-      name: cleanName,
-      category: "Indie Web",
-      unreadCount: 1,
-      initial: cleanName.charAt(0).toUpperCase(),
-      color: "bg-[#e2e8f0] text-[#334155] border-[#cbd5e1]"
-    };
-    setSubscriptions(prev => [newSub, ...prev]);
-    setNewFeedUrl("");
-    setIsAddFeedModalOpen(false);
-    triggerToast(`Feed autodiscovered & subscribed: ${cleanName}`);
+    setIsAddingFeed(true);
+    triggerToast("Autodiscovering RSS / Atom feed...");
+
+    try {
+      // 1. Locate feed URL (Task B)
+      const feedUrl = await autodiscoverFeedUrl(entered);
+
+      // 2. Fetch raw feed via secure proxy
+      const res = await fetch(`/api/fetch?url=${encodeURIComponent(feedUrl)}`);
+      if (!res.ok) {
+        throw new Error(`Feed host responded with HTTP ${res.status}`);
+      }
+      const xmlText = await res.text();
+
+      // 3. Parse XML client-side
+      const parsedFeed = parseFeedXml(xmlText, feedUrl);
+
+      // 4. Check if already subscribed
+      const alreadySubbed = subscriptions.some(
+        s =>
+          (s.feedUrl && s.feedUrl.toLowerCase() === parsedFeed.feedUrl.toLowerCase()) ||
+          s.name.toLowerCase() === parsedFeed.name.toLowerCase()
+      );
+
+      if (alreadySubbed) {
+        triggerToast(`Already subscribed to ${parsedFeed.name}`);
+        setNewFeedUrl("");
+        setIsAddFeedModalOpen(false);
+        setIsAddingFeed(false);
+        return;
+      }
+
+      // Assign styling
+      const colorPalettes = [
+        "bg-[#fef3c7] text-[#92400e] border-[#fde68a]",
+        "bg-[#e0f2fe] text-[#075985] border-[#bae6fd]",
+        "bg-[#ffedd5] text-[#9a3412] border-[#fed7aa]",
+        "bg-[#f3e8ff] text-[#6b21a8] border-[#e9d5ff]",
+        "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]",
+      ];
+      const assignedColor = colorPalettes[subscriptions.length % colorPalettes.length];
+
+      const newSub: Subscription = {
+        id: parsedFeed.id,
+        name: parsedFeed.name,
+        category: parsedFeed.category,
+        feedUrl: parsedFeed.feedUrl,
+        siteUrl: parsedFeed.siteUrl,
+        unreadCount: parsedFeed.articles.length,
+        initial: (parsedFeed.name.charAt(0) || "B").toUpperCase(),
+        color: assignedColor,
+      };
+
+      setSubscriptions(prev => [newSub, ...prev]);
+
+      // Merge novel articles
+      setArticles(prev => {
+        const existingUrls = new Set(prev.map(a => a.url));
+        const novel = parsedFeed.articles.filter(a => !existingUrls.has(a.url));
+        return [...novel, ...prev];
+      });
+
+      setNewFeedUrl("");
+      setIsAddFeedModalOpen(false);
+      triggerToast(`Subscribed: ${parsedFeed.name} (${parsedFeed.articles.length} essays loaded)`);
+
+      // Trigger anonymous discovery batch submission if opted in
+      const allUrls = [
+        parsedFeed.feedUrl,
+        ...subscriptions.map(s => s.feedUrl || "").filter(Boolean),
+      ];
+      syncAnonymousDiscoveryIfOptedIn(allUrls);
+    } catch (err: any) {
+      console.warn("Feed subscription error:", err);
+      triggerToast(`Failed to add feed: ${err.message || "Invalid feed source"}`);
+    } finally {
+      setIsAddingFeed(false);
+    }
+  };
+
+  // Full-Text Readability + DOMPurify on Article Click (Task C)
+  const handleSelectArticle = async (article: Article) => {
+    setSelectedArticle(article);
+    markAsRead(article.id);
+
+    // If article body is short or missing, extract full document
+    if (article.url && (!article.content || article.content.length < 800)) {
+      setIsExtractingArticle(true);
+      try {
+        const extracted = await extractFullArticle(article.url, article.content);
+        if (extracted.content && extracted.content.length > 200) {
+          setSelectedArticle(prev =>
+            prev && prev.id === article.id ? { ...prev, content: extracted.content } : prev
+          );
+          setArticles(prev =>
+            prev.map(a => (a.id === article.id ? { ...a, content: extracted.content } : a))
+          );
+        }
+      } catch (err) {
+        console.warn("Readability fallback:", err);
+      } finally {
+        setIsExtractingArticle(false);
+      }
+    }
+  };
+
+  // OPML Export & Import (Bonus Quest)
+  const handleExportOpml = () => {
+    const opmlText = exportToOpml(
+      subscriptions.map(s => ({
+        name: s.name,
+        feedUrl: s.feedUrl || `https://${s.name.toLowerCase().replace(/\s+/g, "")}.com/feed`,
+        siteUrl: s.siteUrl,
+        category: s.category,
+      }))
+    );
+    triggerOpmlDownload(opmlText, "small-web-subscriptions.opml");
+    triggerToast("Exported OPML file successfully");
+  };
+
+  const handleImportOpml = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const outlines = parseOpml(text);
+      if (outlines.length === 0) {
+        triggerToast("No valid feeds found in OPML file");
+        return;
+      }
+
+      triggerToast(`Importing ${outlines.length} feeds...`);
+      for (const item of outlines.slice(0, 10)) {
+        await handleAddFeedSubmit(undefined, item.xmlUrl);
+      }
+    } catch (err: any) {
+      triggerToast(`OPML import failed: ${err.message}`);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   // Unique categories for dropdown filter
@@ -298,139 +560,145 @@ export default function ReaderDashboard() {
     return true;
   });
 
+  // Metrics
   const unreadTotal = articles.filter(a => a.unread).length;
-  const savedArticles = articles.filter(a => a.saved);
-  const savedTotal = savedArticles.length;
+  const savedArticlesList = articles.filter(a => a.saved);
+  const savedTotal = savedArticlesList.length;
 
   return (
-    <div className="min-h-screen bg-[#fbf8f2] text-[#1f1c19] flex flex-col font-sans selection:bg-[#b45309]/15 selection:text-[#92400e]">
+    <div className="flex flex-col h-screen bg-[#fbf8f2] text-[#1f1c19] overflow-hidden select-none font-sans">
       
-      {/* Toast Notification */}
+      {/* Hidden file input for OPML import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".opml,.xml"
+        onChange={handleImportOpml}
+        className="hidden"
+      />
+
+      {/* TOAST NOTIFICATION */}
       <AnimatePresence>
         {notification && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#1f1c19] text-[#fbf8f2] text-xs font-mono px-4 py-2 rounded-full shadow-lg border border-[#38332c] flex items-center gap-2"
+            exit={{ opacity: 0, y: 15 }}
+            className="fixed bottom-6 right-6 z-50 bg-[#1f1c19] text-[#fbf8f2] px-4 py-2.5 rounded-xl shadow-xl text-xs font-mono flex items-center gap-2 border border-[#443c35]"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#b45309]" />
+            <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
             <span>{notification}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* TOP HEADER */}
-      <header className="h-16 border-b border-[#e8dfd1] bg-[#fbf8f2]/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
+      {/* TOP NAVIGATION BAR */}
+      <header className="h-16 border-b border-[#e8dfd1] px-4 sm:px-6 flex items-center justify-between bg-[#fbf8f2] z-30 flex-shrink-0">
         
-        {/* Brand & Back Button */}
-        <div className="flex items-center gap-5">
+        {/* Left: Back Link & Branding */}
+        <div className="flex items-center gap-4">
           <Link
             href="/"
-            className="group flex items-center gap-2 text-xs font-mono text-[#786b59] hover:text-[#b45309] transition-colors"
+            className="flex items-center gap-1.5 text-xs font-serif text-[#786b59] hover:text-[#b45309] transition-colors p-1.5 rounded-lg hover:bg-[#f4ece1]"
+            title="Return to Landing"
           >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            <span className="hidden sm:inline">Landing Page</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Landing</span>
           </Link>
-          
-          <div className="h-4 w-px bg-[#e8dfd1] hidden sm:block" />
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#b45309] text-white flex items-center justify-center shadow-xs">
-              <Feather className="w-4 h-4 text-white" />
+          <div className="h-4 w-[1px] bg-[#e8dfd1] hidden sm:block" />
+
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#b45309] text-white flex items-center justify-center shadow-xs">
+              <Feather className="w-4 h-4" />
             </div>
-            <div>
-              <h1 className="font-serif font-bold text-sm tracking-tight text-[#1f1c19]">small web</h1>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-[#786b59]">personal library</p>
-            </div>
+            <span className="font-serif font-bold text-base sm:text-lg tracking-tight text-[#1f1c19]">
+              The Small Web Reader
+            </span>
           </div>
         </div>
 
-        {/* Global Search Bar */}
-        <div className="hidden md:flex items-center relative w-80">
-          <Search className="w-3.5 h-3.5 absolute left-3 text-[#8c7e6c]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search essays, systems, authors..."
-            className="w-full bg-[#f4ece1]/80 border border-[#e2d6c3] rounded-xl pl-9 pr-12 py-1.5 text-xs text-[#1f1c19] placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all font-serif"
-          />
-          <kbd className="absolute right-2.5 px-1.5 py-0.5 text-[9px] font-mono bg-white border border-[#d6caba] text-[#8c7e6c] rounded">
-            ⌘K
-          </kbd>
+        {/* Center: Search Keyword */}
+        <div className="flex-1 max-w-md mx-4 hidden md:block">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8c7e6c]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Filter essays, topics, or authors..."
+              className="w-full bg-[#f4ece1]/70 border border-[#e2d6c3] rounded-xl pl-9 pr-4 py-1.5 text-xs font-serif placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all text-[#1f1c19]"
+            />
+          </div>
         </div>
 
-        {/* Top Right Controls (Changes 3, 4, 5) */}
+        {/* Right: Quick Actions */}
         <div className="flex items-center gap-3">
           
-          {/* Change 3: Saved Posts Top Right Column / Dropdown */}
+          {/* Change 3: Saved Posts Dropdown */}
           <div className="relative" ref={savedDropdownRef}>
             <button
               onClick={() => setIsSavedDropdownOpen(prev => !prev)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-serif transition-colors ${
+              className={`p-2 rounded-xl border border-[#e2d6c3] text-xs font-serif transition-colors flex items-center gap-1.5 shadow-xs ${
                 isSavedDropdownOpen || activeTab === "saved"
-                  ? "bg-[#fdfaf5] border-[#b45309] text-[#b45309] shadow-xs"
-                  : "bg-[#f4ece1]/80 border-[#e2d6c3] text-[#574e44] hover:bg-[#ebdcc8]"
+                  ? "bg-[#f4ece1] text-[#b45309]"
+                  : "bg-[#fdfaf5] hover:bg-[#f4ece1] text-[#574e44]"
               }`}
+              title="Saved bookmarks"
             >
-              <Bookmark className="w-3.5 h-3.5 text-[#b45309]" fill={savedTotal > 0 ? "currentColor" : "none"} />
-              <span className="font-medium">Saved ({savedTotal})</span>
-              <ChevronDown className={`w-3 h-3 text-[#8c7e6c] transition-transform ${isSavedDropdownOpen ? "rotate-180" : ""}`} />
+              <Bookmark className="w-3.5 h-3.5 text-[#b45309]" />
+              <span className="hidden sm:inline font-medium">Saved</span>
+              <span className="text-[10px] font-mono bg-[#ebdcc8] text-[#78350f] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+                {savedTotal}
+              </span>
+              <ChevronDown className="w-3 h-3 text-[#8c7e6c]" />
             </button>
 
-            {/* Saved Posts Dropdown Panel */}
+            {/* Saved Dropdown Menu */}
             <AnimatePresence>
               {isSavedDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-2 w-80 bg-[#fdfaf5] border border-[#e8dfd1] rounded-2xl shadow-xl p-3 space-y-2 z-40"
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-xl p-3 z-50 space-y-2"
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-[#e8dfd1] px-1">
-                    <span className="font-serif font-bold text-xs text-[#1f1c19]">Saved Garden</span>
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-[#e8dfd1]">
+                    <span className="text-xs font-serif font-bold text-[#1f1c19]">Saved Essays</span>
                     <button
                       onClick={() => {
                         setActiveTab("saved");
+                        setSelectedBlogId(null);
                         setIsSavedDropdownOpen(false);
                       }}
                       className="text-[11px] font-mono text-[#b45309] hover:underline"
                     >
-                      View all in timeline →
+                      View All in Feed →
                     </button>
                   </div>
 
-                  {savedArticles.length === 0 ? (
+                  {savedArticlesList.length === 0 ? (
                     <div className="py-6 text-center text-xs font-serif text-[#8c7e6c]">
-                      No saved essays yet. Click the bookmark icon on any card to save.
+                      No essays saved yet. Click bookmark icon on any card.
                     </div>
                   ) : (
                     <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
-                      {savedArticles.map(a => (
+                      {savedArticlesList.slice(0, 5).map(savedArt => (
                         <div
-                          key={a.id}
+                          key={savedArt.id}
                           onClick={() => {
-                            setSelectedArticle(a);
+                            handleSelectArticle(savedArt);
                             setIsSavedDropdownOpen(false);
                           }}
-                          className="p-2.5 rounded-xl hover:bg-[#f4ece1] border border-transparent hover:border-[#e2d6c3] cursor-pointer transition-colors group flex items-start justify-between gap-2"
+                          className="p-2 rounded-xl hover:bg-[#f4ece1] cursor-pointer transition-colors space-y-1"
                         >
-                          <div className="flex-1 truncate">
-                            <h5 className="font-serif text-xs font-bold truncate text-[#1f1c19] group-hover:text-[#b45309]">
-                              {a.title}
-                            </h5>
-                            <p className="font-mono text-[10px] text-[#8c7e6c]">
-                              {a.blogName} • {a.readTime}
-                            </p>
+                          <div className="flex items-center justify-between text-[10px] font-mono text-[#8c7e6c]">
+                            <span>{savedArt.blogName}</span>
+                            <span>{savedArt.readTime}</span>
                           </div>
-                          <button
-                            onClick={e => toggleSave(a.id, e)}
-                            className="text-[#8c7e6c] hover:text-[#b45309] p-1"
-                            title="Remove"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <h5 className="font-serif text-xs font-bold text-[#1f1c19] line-clamp-1">
+                            {savedArt.title}
+                          </h5>
                         </div>
                       ))}
                     </div>
@@ -440,10 +708,10 @@ export default function ReaderDashboard() {
             </AnimatePresence>
           </div>
 
-          {/* Change 5: Clean and Proper "Add Feed" Button */}
+          {/* Change 5: Clean Add Feed Trigger */}
           <button
             onClick={() => setIsAddFeedModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-serif font-medium shadow-xs transition-colors hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center gap-1.5 bg-[#b45309] hover:bg-[#92400e] text-white px-3.5 py-1.5 rounded-xl text-xs font-serif font-medium shadow-xs transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Feed</span>
@@ -451,22 +719,20 @@ export default function ReaderDashboard() {
         </div>
       </header>
 
-      {/* MAIN CONTAINER */}
+      {/* MAIN 3-PANE APPLICATION LAYOUT */}
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* RESIZABLE & COLLAPSIBLE LEFT SIDEBAR */}
+        {/* 1. LEFT SIDEBAR (Resizable & Collapsible) */}
         <aside
           style={{ width: isSidebarCollapsed ? 0 : `${sidebarWidth}px` }}
-          className={`border-r border-[#e8dfd1] bg-[#f7f2e8]/60 flex flex-col justify-between hidden lg:flex relative select-none transition-all duration-300 ease-in-out ${
-            isSidebarCollapsed
-              ? "!w-0 !p-0 !border-r-0 overflow-hidden opacity-0 pointer-events-none"
-              : "p-4 overflow-y-auto opacity-100"
+          className={`border-r border-[#e8dfd1] bg-[#fbf8f2] flex flex-col justify-between p-4 overflow-y-auto transition-all duration-200 relative flex-shrink-0 ${
+            isSidebarCollapsed ? "p-0 border-r-0 overflow-hidden" : ""
           }`}
         >
-          <div className="space-y-5">
+          <div className="space-y-6">
             
-            {/* Nav Header with Collapse Action */}
-            <div className="flex items-center justify-between pb-1 px-1">
+            {/* Sidebar Top: Collapse Button */}
+            <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-mono uppercase tracking-wider text-[#8c7e6c] font-bold">
                 Navigation
               </span>
@@ -490,10 +756,26 @@ export default function ReaderDashboard() {
                 }`}
               >
                 <span className="flex items-center gap-2.5">
-                  <BookOpen className="w-4 h-4" /> Discovery
+                  <BookOpen className="w-4 h-4" /> Timeline
                 </span>
                 <span className="text-[10px] font-mono bg-[#ebdcc8] text-[#78350f] px-2 py-0.5 rounded-full font-bold">
                   {articles.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("discover"); setSelectedBlogId(null); }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                  activeTab === "discover"
+                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 text-[#b45309]" /> Discovery Hub
+                </span>
+                <span className="text-[10px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold">
+                  Explore
                 </span>
               </button>
 
@@ -514,79 +796,104 @@ export default function ReaderDashboard() {
               </button>
             </div>
 
-            {/* Change 6: Subscriptions Section with Sleek Dropdown */}
+            {/* Subscriptions Section with Category Dropdown & OPML Actions */}
             <div className="space-y-2.5 pt-4 border-t border-[#e8dfd1]">
               
-              {/* Header with Category Dropdown Trigger */}
+              {/* Header with Category Dropdown & OPML buttons */}
               <div className="flex items-center justify-between px-1">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#8c7e6c] font-bold">
                   Subscriptions
                 </span>
-                
-                {/* Category Filter Dropdown */}
-                <div className="relative">
+
+                <div className="flex items-center gap-1">
+                  {/* OPML Export */}
                   <button
-                    onClick={() => setIsSubDropdownOpen(prev => !prev)}
-                    className="flex items-center gap-1 text-[11px] font-mono text-[#786b59] hover:text-[#b45309] px-2 py-0.5 rounded-md hover:bg-[#ebdcc8]/50 transition-colors"
+                    onClick={handleExportOpml}
+                    className="p-1 rounded text-[#786b59] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors"
+                    title="Export subscriptions to OPML (.xml)"
                   >
-                    <Filter className="w-3 h-3 text-[#b45309]" />
-                    <span className="capitalize">{categoryFilter}</span>
-                    <ChevronDown className="w-2.5 h-2.5" />
+                    <Download className="w-3 h-3" />
                   </button>
 
-                  <AnimatePresence>
-                    {isSubDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 5 }}
-                        className="absolute right-0 mt-1 w-36 bg-[#fdfaf5] border border-[#e2d6c3] rounded-xl shadow-lg p-1.5 z-30 font-mono text-xs space-y-0.5"
-                      >
-                        {categories.map(cat => (
-                          <button
-                            key={cat}
-                            onClick={() => {
-                              setCategoryFilter(cat);
-                              setIsSubDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-2 py-1 rounded-lg capitalize transition-colors flex items-center justify-between ${
-                              categoryFilter === cat
-                                ? "bg-[#b45309] text-white font-bold"
-                                : "text-[#574e44] hover:bg-[#f4ece1]"
-                            }`}
-                          >
-                            <span>{cat}</span>
-                            {categoryFilter === cat && <CheckCircle2 className="w-3 h-3" />}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {/* OPML Import */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-1 rounded text-[#786b59] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors"
+                    title="Import OPML feed list"
+                  >
+                    <Upload className="w-3 h-3" />
+                  </button>
+                  
+                  {/* Category Filter Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsSubDropdownOpen(prev => !prev)}
+                      className="flex items-center gap-1 text-[11px] font-mono text-[#786b59] hover:text-[#b45309] px-1.5 py-0.5 rounded-md hover:bg-[#ebdcc8]/50 transition-colors"
+                    >
+                      <Filter className="w-3 h-3 text-[#b45309]" />
+                      <span className="capitalize">{categoryFilter}</span>
+                      <ChevronDown className="w-2.5 h-2.5" />
+                    </button>
+
+                    <AnimatePresence>
+                      {isSubDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 5 }}
+                          className="absolute right-0 mt-1 w-36 bg-[#fdfaf5] border border-[#e2d6c3] rounded-xl shadow-lg p-1.5 z-30 font-mono text-xs space-y-0.5"
+                        >
+                          {categories.map(cat => (
+                            <button
+                              key={cat}
+                              onClick={() => {
+                                setCategoryFilter(cat);
+                                setIsSubDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1 rounded-lg capitalize transition-colors ${
+                                categoryFilter === cat
+                                  ? "bg-[#b45309] text-white font-bold"
+                                  : "text-[#574e44] hover:bg-[#f4ece1]"
+                              }`}
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </div>
 
-              {/* Filtered Subscriptions List */}
+              {/* Subscriptions List */}
               <div className="space-y-1">
                 {filteredSubscriptions.map(sub => (
                   <button
                     key={sub.id}
                     onClick={() => {
-                      setSelectedBlogId(sub.id === selectedBlogId ? null : sub.id);
+                      setSelectedBlogId(sub.id);
                       setActiveTab("all");
                     }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-serif transition-colors ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-serif transition-colors ${
                       selectedBlogId === sub.id
-                        ? "bg-[#fdfaf5] text-[#b45309] font-bold shadow-xs border border-[#e2d6c3]"
-                        : "text-[#574e44] hover:bg-[#f3ecdf]/60"
+                        ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                        : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                     }`}
                   >
-                    <span className="flex items-center gap-2 truncate">
-                      <span className={`w-5 h-5 rounded-md text-[10px] font-mono font-bold flex items-center justify-center border ${sub.color}`}>
+                    <div className="flex items-center gap-2.5 truncate">
+                      <span
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center font-mono font-bold text-[10px] ${sub.color}`}
+                      >
                         {sub.initial}
                       </span>
                       <span className="truncate">{sub.name}</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-[#8c7e6c]">{sub.unreadCount}</span>
+                    </div>
+                    {sub.unreadCount > 0 && (
+                      <span className="text-[10px] font-mono text-[#8c7e6c]">
+                        {sub.unreadCount}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -594,7 +901,7 @@ export default function ReaderDashboard() {
 
           </div>
 
-          {/* Philosophy Card */}
+          {/* Zero Surveillance Philosophy Card */}
           <div className="p-3.5 rounded-2xl bg-[#f2e9db]/70 border border-[#e2d6c3] space-y-2 mt-4">
             <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#78350f]">
               <ShieldCheck className="w-4 h-4 text-[#b45309]" />
@@ -605,7 +912,7 @@ export default function ReaderDashboard() {
             </p>
           </div>
 
-          {/* Change 1: Draggable Resize Handle */}
+          {/* Draggable Resize Handle */}
           <div
             onMouseDown={() => {
               isResizingRef.current = true;
@@ -619,7 +926,7 @@ export default function ReaderDashboard() {
           </div>
         </aside>
 
-        {/* Floating Expand Button when Sidebar is Collapsed (Icon Only) */}
+        {/* Floating Expand Button when Sidebar is Collapsed */}
         {isSidebarCollapsed && (
           <button
             onClick={() => setIsSidebarCollapsed(false)}
@@ -630,127 +937,138 @@ export default function ReaderDashboard() {
           </button>
         )}
 
-        {/* 2. CENTER FEED (Chronological Timeline) */}
+        {/* 2. CENTER CONTENT (Timeline OR Anonymous Discovery View) */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-[#fbf8f2]">
           <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
             
-            {/* Header Title & Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
-              <div>
-                <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
-                  {selectedBlogId
-                    ? subscriptions.find(s => s.id === selectedBlogId)?.name
-                    : activeTab === "unread"
-                    ? "Unread Collection"
-                    : activeTab === "saved"
-                    ? "Saved Garden"
-                    : "Personal Timeline."}
-                </h2>
-                <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
-                  Latest writings from your curated library. Sorted purely by chronologic delivery.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-[#8c7e6c]">
-                  {filteredArticles.length} essays
-                </span>
-                <button
-                  onClick={markAllRead}
-                  className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
-                >
-                  Mark all read
-                </button>
-              </div>
-            </div>
-
-            {/* Articles Feed */}
-            {filteredArticles.length === 0 ? (
-              <div className="py-20 text-center space-y-3">
-                <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
-                <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
-                <p className="font-serif text-xs text-[#8c7e6c]">
-                  {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later."}
-                </p>
-              </div>
+            {activeTab === "discover" ? (
+              /* ANONYMOUS DISCOVERY VIEW */
+              <DiscoveryView
+                subscribedUrls={subscriptions.map(s => s.feedUrl || "").filter(Boolean)}
+                onSubscribe={(url, title) => handleAddFeedSubmit(undefined, url)}
+                onToast={triggerToast}
+              />
             ) : (
-              <div className="space-y-4">
-                {filteredArticles.map(article => (
-                  <motion.article
-                    key={article.id}
-                    onClick={() => {
-                      setSelectedArticle(article);
-                      markAsRead(article.id);
-                    }}
-                    className="group p-5 rounded-2xl border border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start"
-                  >
-                    <div className="flex-1 space-y-2.5">
-                      
-                      {/* Metadata Tag */}
-                      <div className="flex items-center gap-2 text-xs">
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            article.unread ? "bg-[#b45309]" : "bg-transparent"
-                          }`}
-                        />
-                        <span className="font-serif font-bold text-[#1f1c19] text-xs">
-                          {article.blogName}
-                        </span>
-                        <span className="text-[#d6caba]">•</span>
-                        <span className="font-mono text-[11px] text-[#8c7e6c]">
-                          {article.category}
-                        </span>
-                      </div>
+              /* CHRONOLOGICAL TIMELINE VIEW */
+              <>
+                {/* Header Title & Actions */}
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
+                  <div>
+                    <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
+                      {selectedBlogId
+                        ? subscriptions.find(s => s.id === selectedBlogId)?.name
+                        : activeTab === "unread"
+                        ? "Unread Collection"
+                        : activeTab === "saved"
+                        ? "Saved Garden"
+                        : "Personal Timeline."}
+                    </h2>
+                    <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
+                      Latest writings from your curated library. Sorted purely by chronologic delivery.
+                    </p>
+                  </div>
 
-                      {/* Article Headline */}
-                      <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1f1c19] group-hover:text-[#b45309] transition-colors leading-snug">
-                        {article.title}
-                      </h3>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono text-[#8c7e6c]">
+                      {filteredArticles.length} essays
+                    </span>
+                    <button
+                      onClick={markAllRead}
+                      className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+                </div>
 
-                      {/* Excerpt */}
-                      <p className="font-serif text-xs sm:text-sm text-[#574e44] line-clamp-2 leading-relaxed">
-                        {article.excerpt}
-                      </p>
+                {/* Articles Feed */}
+                {filteredArticles.length === 0 ? (
+                  <div className="py-20 text-center space-y-3">
+                    <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
+                    <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
+                    <p className="font-serif text-xs text-[#8c7e6c]">
+                      {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredArticles.map(article => (
+                      <motion.article
+                        key={article.id}
+                        onClick={() => handleSelectArticle(article)}
+                        className="group p-5 rounded-2xl border border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start"
+                      >
+                        <div className="flex-1 space-y-2.5">
+                          
+                          {/* Metadata Tag */}
+                          <div className="flex items-center gap-2 text-xs">
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                article.unread ? "bg-[#b45309]" : "bg-transparent"
+                              }`}
+                            />
+                            <span className="font-serif font-bold text-[#1f1c19] text-xs">
+                              {article.blogName}
+                            </span>
+                            <span className="text-[#d6caba]">•</span>
+                            <span className="font-mono text-[11px] text-[#8c7e6c]">
+                              {article.date}
+                            </span>
+                            <span className="text-[#d6caba]">•</span>
+                            <span className="font-mono text-[11px] text-[#8c7e6c]">
+                              {article.readTime}
+                            </span>
+                          </div>
 
-                      {/* Bottom Actions */}
-                      <div className="flex items-center justify-between text-xs text-[#8c7e6c] font-mono pt-1">
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="w-3 h-3 text-[#b45309]" />
-                          {article.readTime} • {article.date}
-                        </span>
+                          {/* Title & Excerpt */}
+                          <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1f1c19] group-hover:text-[#b45309] transition-colors leading-snug">
+                            {article.title}
+                          </h3>
+                          <p className="font-serif text-xs sm:text-sm text-[#6b5f50] leading-relaxed line-clamp-2">
+                            {article.excerpt}
+                          </p>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={e => toggleSave(article.id, e)}
-                            className={`p-1.5 rounded-lg hover:bg-[#f3ecdf] transition-colors ${
-                              article.saved ? "text-[#b45309]" : "text-[#8c7e6c]"
-                            }`}
-                          >
-                            <Bookmark className="w-3.5 h-3.5" fill={article.saved ? "currentColor" : "none"} />
-                          </button>
-                          <button
-                            onClick={e => markAsRead(article.id, e)}
-                            className="p-1.5 rounded-lg hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19] transition-colors"
-                            title="Mark read"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Quick Bottom Actions */}
+                          <div className="flex items-center justify-between pt-2">
+                            <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#f4ece1] text-[#78350f]">
+                              {article.category}
+                            </span>
+
+                            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={e => toggleSave(article.id, e)}
+                                className={`p-1.5 rounded-lg hover:bg-[#f3ecdf] transition-colors ${
+                                  article.saved ? "text-[#b45309]" : "text-[#8c7e6c]"
+                                }`}
+                                title={article.saved ? "Remove bookmark" : "Save bookmark"}
+                              >
+                                <Bookmark className="w-3.5 h-3.5" fill={article.saved ? "currentColor" : "none"} />
+                              </button>
+                              <button
+                                onClick={e => markAsRead(article.id, e)}
+                                className="p-1.5 rounded-lg hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19] transition-colors"
+                                title="Mark read"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
                         </div>
-                      </div>
 
-                    </div>
-
-                    {/* Editorial Thumbnail */}
-                    <div className="w-full sm:w-40 h-28 rounded-xl overflow-hidden border border-[#e8dfd1] flex-shrink-0 bg-[#f4ece1] shadow-xs">
-                      <img
-                        src={article.image}
-                        alt={article.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                  </motion.article>
-                ))}
-              </div>
+                        {/* Editorial Thumbnail */}
+                        <div className="w-full sm:w-40 h-28 rounded-xl overflow-hidden border border-[#e8dfd1] flex-shrink-0 bg-[#f4ece1] shadow-xs">
+                          <img
+                            src={article.image}
+                            alt={article.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        </div>
+                      </motion.article>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
           </div>
@@ -809,54 +1127,67 @@ export default function ReaderDashboard() {
           <div className="space-y-3">
             <div className="flex justify-between items-center text-xs">
               <span className="font-serif font-bold text-[#1f1c19]">Continue Reading</span>
-              <span className="font-mono text-[10px] text-[#8c7e6c]">2 in progress</span>
+              <span className="font-mono text-[10px] text-[#8c7e6c]">In Progress</span>
             </div>
 
-            <div className="space-y-2">
-              {articles.slice(0, 2).map(a => (
-                <div
-                  key={a.id}
-                  onClick={() => setSelectedArticle(a)}
-                  className="p-2.5 rounded-xl bg-[#fdfaf5] border border-[#e8dfd1] hover:border-[#b45309]/50 flex items-center gap-3 cursor-pointer transition-all shadow-xs"
-                >
-                  <img src={a.image} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" alt="" />
-                  <div className="flex-1 truncate">
-                    <h5 className="font-serif text-xs font-semibold truncate text-[#1f1c19]">{a.title}</h5>
-                    <p className="font-mono text-[10px] text-[#8c7e6c]">{a.blogName} • 4 min left</p>
-                  </div>
-                </div>
-              ))}
+            <div
+              onClick={() => handleSelectArticle(articles[0])}
+              className="p-3.5 rounded-xl border border-[#e8dfd1] bg-[#fdfaf5] hover:bg-[#f4ece1] transition-colors cursor-pointer space-y-1.5 shadow-xs"
+            >
+              <div className="flex justify-between items-center text-[10px] font-mono text-[#8c7e6c]">
+                <span>{articles[0]?.blogName}</span>
+                <span>65% done</span>
+              </div>
+              <h5 className="font-serif text-xs font-bold text-[#1f1c19] line-clamp-1">
+                {articles[0]?.title}
+              </h5>
+              <div className="w-full bg-[#ebdcc8] h-1 rounded-full overflow-hidden">
+                <div className="bg-[#b45309] h-full w-[65%]" />
+              </div>
             </div>
           </div>
 
-          {/* Quote Card */}
-          <div className="p-4 rounded-2xl bg-[#fdfaf5] border border-[#e8dfd1] space-y-2 shadow-xs">
-            <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
-            <p className="font-serif text-xs italic text-[#574e44] leading-relaxed">
-              "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
+          {/* Discover Prompt Card */}
+          <div className="p-4 rounded-2xl bg-[#b45309]/10 border border-[#b45309]/20 space-y-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#b45309]" />
+              <h5 className="font-serif font-bold text-xs text-[#92400e]">Anonymous Recommendations</h5>
+            </div>
+            <p className="font-serif text-[11px] text-[#78350f] leading-snug">
+              Based on your subscriptions, our anonymous matrix has new independent essays ready for you.
             </p>
+            <button
+              onClick={() => setActiveTab("discover")}
+              className="text-xs font-serif font-bold text-[#b45309] hover:underline flex items-center gap-1 pt-1"
+            >
+              <span>Explore Discovery Hub</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
         </aside>
 
       </div>
 
-      {/* Change 5: SLEEK & CLEAN "ADD FEED" MODAL */}
+      {/* ADD FEED MODAL (Task B: Autodiscovery) */}
       <AnimatePresence>
         {isAddFeedModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50"
+            onClick={() => setIsAddFeedModalOpen(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 cursor-pointer"
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="w-full max-w-lg bg-[#fdfaf5] border border-[#e8dfd1] rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5"
+              onClick={e => e.stopPropagation()}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-2xl p-6 space-y-5 cursor-default"
             >
-              <div className="flex items-start justify-between">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-[#b45309] text-white flex items-center justify-center text-xs">
@@ -890,7 +1221,8 @@ export default function ReaderDashboard() {
                     onChange={e => setNewFeedUrl(e.target.value)}
                     placeholder="e.g. https://overreacted.io or danluu.com"
                     autoFocus
-                    className="w-full bg-[#f4ece1]/80 border border-[#e2d6c3] rounded-xl px-4 py-2.5 text-xs font-mono text-[#1f1c19] placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all"
+                    disabled={isAddingFeed}
+                    className="w-full bg-[#f4ece1]/80 border border-[#e2d6c3] rounded-xl px-4 py-2.5 text-xs font-mono text-[#1f1c19] placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all disabled:opacity-50"
                   />
                 </div>
 
@@ -904,13 +1236,14 @@ export default function ReaderDashboard() {
                       { name: "Overreacted", url: "https://overreacted.io" },
                       { name: "Simon Willison", url: "https://simonwillison.net" },
                       { name: "Robin Sloan", url: "https://robinsloan.com" },
-                      { name: "Paul Graham", url: "http://paulgraham.com/rss.html" }
+                      { name: "Julia Evans", url: "https://jvns.ca" }
                     ].map(preset => (
                       <button
                         key={preset.name}
                         type="button"
+                        disabled={isAddingFeed}
                         onClick={() => setNewFeedUrl(preset.url)}
-                        className="px-2.5 py-1 rounded-lg bg-[#f4ece1] hover:bg-[#ebdcc8] text-[11px] font-serif text-[#574e44] border border-[#e2d6c3] transition-colors"
+                        className="px-2.5 py-1 rounded-lg bg-[#f4ece1] hover:bg-[#ebdcc8] text-[11px] font-serif text-[#574e44] border border-[#e2d6c3] transition-colors disabled:opacity-50"
                       >
                         + {preset.name}
                       </button>
@@ -923,15 +1256,24 @@ export default function ReaderDashboard() {
                   <button
                     type="button"
                     onClick={() => setIsAddFeedModalOpen(false)}
+                    disabled={isAddingFeed}
                     className="px-4 py-2 rounded-xl text-xs font-serif font-medium text-[#786b59] hover:bg-[#f4ece1] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-serif font-medium shadow-xs transition-colors"
+                    disabled={isAddingFeed || !newFeedUrl.trim()}
+                    className="px-5 py-2 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-serif font-medium shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
                   >
-                    Subscribe Now
+                    {isAddingFeed ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Autodiscovering...</span>
+                      </>
+                    ) : (
+                      "Subscribe Now"
+                    )}
                   </button>
                 </div>
               </form>
@@ -940,7 +1282,7 @@ export default function ReaderDashboard() {
         )}
       </AnimatePresence>
 
-      {/* SLIDE-OVER ARTICLE READER DRAWER */}
+      {/* SLIDE-OVER ARTICLE READER DRAWER (Task C: Full-Text Readability + DOMPurify) */}
       <AnimatePresence>
         {selectedArticle && (
           <motion.div
@@ -1007,6 +1349,14 @@ export default function ReaderDashboard() {
                     By <strong className="text-[#1f1c19]">{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
                   </p>
                 </div>
+
+                {/* Readability Loading Indicator */}
+                {isExtractingArticle && (
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#fef3c7] text-[#92400e] text-xs font-mono border border-[#fde68a]">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#b45309]" />
+                    <span>Extracting clean full text via Mozilla Readability & DOMPurify...</span>
+                  </div>
+                )}
 
                 <hr className="border-[#e8dfd1]" />
 

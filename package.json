@@ -10,9 +10,11 @@
     "test:backend": "npx tsx scripts/test-backend.mjs"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@prisma/client": "^7.10.1",
     "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.1.1",
+    "dompurify": "^3.4.17",
     "framer-motion": "^14.7.1",
     "lucide-react": "^1.64.0",
     "next": "16.4.3",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
