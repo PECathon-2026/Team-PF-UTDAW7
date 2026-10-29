@@ -10,7 +10,7 @@ import {
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Compass, ArrowRight, Feather, Coffee, Sparkles } from "lucide-react";
+import { BookOpen, Compass, ArrowRight, Feather, Coffee, Sparkles, ChevronDown } from "lucide-react";
 
 interface BlogCardItem {
     src: string;
@@ -275,8 +275,17 @@ export default function PerspectiveTunnelHero() {
         if (!el) return;
 
         const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
             const current = rawProgress.get();
+            if (window.scrollY > 20) {
+                return;
+            }
+            if (current >= 0.95 && e.deltaY > 0) {
+                return;
+            }
+            if (current <= 0.02 && e.deltaY < 0) {
+                return;
+            }
+            e.preventDefault();
             const delta = e.deltaY * 0.0008;
             const next = Math.min(1, Math.max(0, current + delta));
             rawProgress.set(next);
@@ -379,11 +388,20 @@ export default function PerspectiveTunnelHero() {
             {/* Warm Quill Scroll Prompt */}
             <motion.div
                 style={{ opacity: promptOpacity }}
-                className="pointer-events-none absolute bottom-9 z-20 flex flex-col items-center gap-2 text-xs font-mono uppercase tracking-[0.25em] text-[#8c7e6c]"
+                className="pointer-events-none absolute bottom-12 z-20 flex flex-col items-center gap-2 text-xs font-mono uppercase tracking-[0.25em] text-[#8c7e6c]"
             >
                 <span>Scroll to explore the library</span>
                 <div className="h-7 w-px bg-gradient-to-b from-[#b45309] to-transparent animate-pulse" />
             </motion.div>
+
+            {/* Quick Explore Anchor */}
+            <a
+                href="#features"
+                className="pointer-events-auto absolute bottom-3.5 z-30 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f3ecdf]/90 border border-[#e2d6c3] text-[11px] font-mono text-[#786b59] hover:text-[#b45309] hover:bg-[#fffdfa] transition-all shadow-xs backdrop-blur-sm cursor-pointer"
+            >
+                <span>Explore Architecture & Seed Library</span>
+                <ChevronDown className="w-3.5 h-3.5 text-[#b45309] animate-bounce" />
+            </a>
 
             {/* 3D Z-Space Blog Tunnel Cards */}
             <div
