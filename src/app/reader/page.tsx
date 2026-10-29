@@ -959,13 +959,9 @@ export default function ReaderDashboard() {
               
               {/* Drawer Top Header Controls */}
               <div className="h-16 border-b border-[#e8dfd1] px-6 flex items-center justify-between bg-[#f4ece1]/80">
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-full font-mono text-[10px]">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>DOMPurify Sanitized</span>
-                  </div>
-                  <span className="text-[#d6caba]">•</span>
-                  <span className="font-mono text-[11px] text-[#8c7e6c]">IndexedDB Cached</span>
+                <div className="flex items-center gap-2">
+                  <Feather className="w-3.5 h-3.5 text-[#b45309]" />
+                  <span className="font-serif font-bold text-xs text-[#1f1c19]">Reading View</span>
                 </div>
 
                 <div className="flex items-center gap-2">
