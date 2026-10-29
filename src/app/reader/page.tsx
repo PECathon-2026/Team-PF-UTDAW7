@@ -343,15 +343,6 @@ export default function ReaderDashboard() {
               <h1 className="font-serif font-bold text-sm tracking-tight text-[#1f1c19]">small web</h1>
               <p className="text-[10px] font-mono uppercase tracking-widest text-[#786b59]">personal library</p>
             </div>
-
-            {/* Sidebar Collapse/Expand Toggle Button in Header */}
-            <button
-              onClick={() => setIsSidebarCollapsed(prev => !prev)}
-              className="ml-2 hidden lg:flex items-center gap-1.5 p-1.5 rounded-lg border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f4ece1] text-[#786b59] hover:text-[#b45309] transition-colors"
-              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {isSidebarCollapsed ? <PanelLeftOpen className="w-4 h-4 text-[#b45309]" /> : <PanelLeftClose className="w-4 h-4" />}
-            </button>
           </div>
         </div>
 
@@ -499,7 +490,7 @@ export default function ReaderDashboard() {
                 }`}
               >
                 <span className="flex items-center gap-2.5">
-                  <BookOpen className="w-4 h-4" /> All Essays
+                  <BookOpen className="w-4 h-4" /> Discovery
                 </span>
                 <span className="text-[10px] font-mono bg-[#ebdcc8] text-[#78350f] px-2 py-0.5 rounded-full font-bold">
                   {articles.length}
@@ -520,20 +511,6 @@ export default function ReaderDashboard() {
                 <span className="text-[10px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold">
                   {unreadTotal}
                 </span>
-              </button>
-
-              <button
-                onClick={() => { setActiveTab("saved"); setSelectedBlogId(null); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "saved"
-                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
-                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Bookmark className="w-4 h-4" /> Saved Garden
-                </span>
-                <span className="text-[10px] font-mono text-[#8c7e6c]">{savedTotal}</span>
               </button>
             </div>
 
@@ -642,15 +619,14 @@ export default function ReaderDashboard() {
           </div>
         </aside>
 
-        {/* Floating Expand Button when Sidebar is Collapsed */}
+        {/* Floating Expand Button when Sidebar is Collapsed (Icon Only) */}
         {isSidebarCollapsed && (
           <button
             onClick={() => setIsSidebarCollapsed(false)}
-            className="hidden lg:flex absolute left-4 top-4 z-30 px-3 py-1.5 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center gap-2 text-xs font-serif group"
+            className="hidden lg:flex absolute left-4 top-4 z-30 p-2 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center justify-center group"
             title="Expand sidebar"
           >
             <PanelLeftOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform" />
-            <span className="font-medium">Show Sidebar</span>
           </button>
         )}
 
