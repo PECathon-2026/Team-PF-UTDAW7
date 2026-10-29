@@ -1233,9 +1233,9 @@ export default function ReaderDashboard() {
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {[
+                      { name: "The Verge", url: "https://www.theverge.com" },
+                      { name: "Hacker News", url: "https://news.ycombinator.com" },
                       { name: "Overreacted", url: "https://overreacted.io" },
-                      { name: "Simon Willison", url: "https://simonwillison.net" },
-                      { name: "Robin Sloan", url: "https://robinsloan.com" },
                       { name: "Julia Evans", url: "https://jvns.ca" }
                     ].map(preset => (
                       <button

@@ -78,6 +78,16 @@ export async function autodiscoverFeedUrl(siteUrl: string): Promise<string> {
     cleanUrl = "https://" + cleanUrl;
   }
 
+  // Smart alias for Hacker News: uses the public high-availability hnrss gateway
+  // because news.ycombinator.com/rss actively blocks proxy crawlers with HTTP 419
+  if (
+    cleanUrl.includes("news.ycombinator.com") ||
+    cleanUrl.includes("ycombinator") ||
+    cleanUrl.toLowerCase().includes("hackernews")
+  ) {
+    return "https://hnrss.org/frontpage";
+  }
+
   const proxyFetch = async (target: string) => {
     const res = await fetch(`/api/fetch?url=${encodeURIComponent(target)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
