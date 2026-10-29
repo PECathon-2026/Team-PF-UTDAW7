@@ -155,8 +155,8 @@ function TunnelCard({ card, progress, pointer, total, stage }: TunnelCardProps) 
     const opacity = useTransform(localProgress, [0, 0.18, 0.82, 0.98], [0, 1, 1, 0]);
 
     const cardWidth = stage.isMobile
-        ? Math.max(170, Math.min(230, stage.width * 0.48))
-        : Math.max(230, Math.min(320, stage.width * 0.23));
+        ? Math.max(140, Math.min(190, stage.width * 0.40))
+        : Math.max(180, Math.min(260, stage.width * 0.17));
 
     const baseX = card.angleCos * (stage.width * card.radiusFactorX);
     const baseY = card.angleSin * (stage.height * card.radiusFactorY);
@@ -249,8 +249,9 @@ export default function PerspectiveTunnelHero() {
 
     const tunnelCards: TunnelCardData[] = BLOG_EDITORIAL_CARDS.map((item, i) => {
         const goldenAngle = i * 137.5 * (Math.PI / 180);
-        const radiusFactorX = 0.28 + (i % 3) * 0.08;
-        const radiusFactorY = 0.26 + (i % 2) * 0.09;
+        // Perimeter orbit corridor leaves central text unblocked
+        const radiusFactorX = 0.42 + (i % 3) * 0.08;
+        const radiusFactorY = 0.38 + (i % 2) * 0.08;
 
         return {
             item,
@@ -271,36 +272,88 @@ export default function PerspectiveTunnelHero() {
     });
 
     useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-
         const handleWheel = (e: WheelEvent) => {
             const current = rawProgress.get();
-            if (window.scrollY > 20) {
-                return;
+            const smooth = smoothProgress.get();
+
+            // When user is at the top, strictly lock and prevent page scroll until 3D tunnel completes
+            if (window.scrollY <= 10) {
+                if (current < 0.98 || smooth < 0.94) {
+                    e.preventDefault();
+                    window.scrollTo(0, 0);
+                    // Bounded smooth advancement
+                    const delta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY) * 0.0005, 0.035);
+                    const next = Math.min(1, Math.max(0, current + delta));
+                    rawProgress.set(next);
+                    return;
+                }
+
+                // If tunnel has completed and user is continuing to scroll down, allow native scroll
+                if (e.deltaY > 0) {
+                    return;
+                }
+
+                // If at top and scrolling UP, reverse tunnel
+                if (e.deltaY < 0) {
+                    e.preventDefault();
+                    const delta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY) * 0.0005, 0.035);
+                    const next = Math.min(1, Math.max(0, current + delta));
+                    rawProgress.set(next);
+                }
             }
-            if (current >= 0.95 && e.deltaY > 0) {
-                return;
-            }
-            if (current <= 0.02 && e.deltaY < 0) {
-                return;
-            }
-            e.preventDefault();
-            const delta = e.deltaY * 0.0008;
-            const next = Math.min(1, Math.max(0, current + delta));
-            rawProgress.set(next);
         };
 
-        el.addEventListener("wheel", handleWheel, { passive: false });
-        return () => el.removeEventListener("wheel", handleWheel);
-    }, [rawProgress]);
+        window.addEventListener("wheel", handleWheel, { passive: false });
+        return () => window.removeEventListener("wheel", handleWheel);
+    }, [rawProgress, smoothProgress]);
 
     const pointer = useCameraParallax(!reduce);
 
-    const titleScale = useTransform(smoothProgress, [0, 0.5, 1], [0.85, 1, 1.25]);
-    const titleOpacity = useTransform(smoothProgress, [0, 0.15, 0.85, 1], [0.25, 1, 1, 0]);
-    const promptOpacity = useTransform(smoothProgress, [0, 0.12], [1, 0]);
-    const actionsOpacity = useTransform(smoothProgress, [0.35, 0.65, 0.95, 1], [0, 1, 1, 0.2]);
+    // Initial state: center text & circular guides are faded.
+    // When scrolling down: smoothly brought into dramatic spotlight!
+    const titleScale = useTransform(smoothProgress, [0, 0.5, 0.85], [0.93, 0.98, 1.05]);
+    const titleOpacity = useTransform(smoothProgress, [0, 0.45, 0.85], [0.28, 0.70, 1]);
+    const ringsOpacity = useTransform(smoothProgress, [0, 0.5, 0.85], [0.18, 0.55, 0.9]);
+    const spotlightOpacity = useTransform(smoothProgress, [0, 0.5, 0.85], [0.10, 0.50, 0.95]);
+    const promptOpacity = useTransform(smoothProgress, [0, 0.25], [1, 0]);
+
+    // Bottom progress bar: moves to the right as you scroll and gets covered completely at 100%
+    const progressWidth = useTransform(smoothProgress, [0, 1], ["0%", "100%"]);
+
+    // Soft, perfectly aligned scroll down to features
+    const handleSoftScroll = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const target = document.getElementById("features");
+        if (!target) return;
+
+        // Ensure hero animation state is complete
+        rawProgress.set(1);
+
+        const startY = window.scrollY;
+        const targetY = target.getBoundingClientRect().top + window.scrollY;
+        const distance = targetY - startY;
+        const duration = 1000; // soft 1s glide
+        let startTime: number | null = null;
+
+        // Soft, elegant ease-in-out cubic curve
+        const easeInOutCubic = (t: number) => {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        };
+
+        const step = (timestamp: number) => {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const eased = easeInOutCubic(t);
+            window.scrollTo(0, Math.round(startY + distance * eased));
+
+            if (t < 1) {
+                requestAnimationFrame(step);
+            }
+        };
+
+        requestAnimationFrame(animateScroll => step(animateScroll));
+    };
 
     return (
         <div
@@ -336,9 +389,20 @@ export default function PerspectiveTunnelHero() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#e4dacb_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_75%_75%_at_50%_50%,#000_65%,transparent_100%)] opacity-70" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(217,119,6,0.06)_0%,transparent_70%)]" />
 
-            {/* Subtle Concentric Warm Guides */}
-            <div className="pointer-events-none absolute h-[52vmin] w-[52vmin] rounded-full border border-[#b45309]/15" />
-            <div className="pointer-events-none absolute h-[82vmin] w-[82vmin] rounded-full border border-dashed border-[#d8cca8]/60" />
+            {/* Spotlight Background Glow (fades in as you scroll, creating a focused spotlight) */}
+            <motion.div
+                style={{ opacity: spotlightOpacity }}
+                className="pointer-events-none absolute w-[46rem] h-[30rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(217,119,6,0.18)_0%,rgba(68,36,15,0.08)_50%,transparent_75%)] blur-2xl"
+            />
+
+            {/* Concentric Warm Guides in Spotlight */}
+            <motion.div
+                style={{ opacity: ringsOpacity }}
+                className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
+                <div className="absolute h-[52vmin] w-[52vmin] rounded-full border-2 border-[#b45309]/30 shadow-[0_0_35px_rgba(180,83,9,0.15)]" />
+                <div className="absolute h-[82vmin] w-[82vmin] rounded-full border border-dashed border-[#b45309]/35" />
+            </motion.div>
 
             {/* Central Typography: Warm Editorial / Literary Book Style */}
             <motion.div
@@ -375,14 +439,15 @@ export default function PerspectiveTunnelHero() {
                 <div className="h-7 w-px bg-gradient-to-b from-[#b45309] to-transparent animate-pulse" />
             </motion.div>
 
-            {/* Quick Explore Anchor */}
-            <a
-                href="#features"
-                className="pointer-events-auto absolute bottom-3.5 z-30 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f3ecdf]/90 border border-[#e2d6c3] text-[11px] font-mono text-[#786b59] hover:text-[#b45309] hover:bg-[#fffdfa] transition-all shadow-xs backdrop-blur-sm cursor-pointer"
+            {/* Quick Explore Anchor with Soft Smooth Scroll */}
+            <button
+                type="button"
+                onClick={handleSoftScroll}
+                className="pointer-events-auto absolute bottom-4 z-30 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f3ecdf]/95 border border-[#e2d6c3] text-[11px] font-mono text-[#786b59] hover:text-[#b45309] hover:bg-[#fffdfa] transition-all shadow-xs backdrop-blur-sm cursor-pointer"
             >
                 <span>Explore System Architecture</span>
                 <ChevronDown className="w-3.5 h-3.5 text-[#b45309] animate-bounce" />
-            </a>
+            </button>
 
             {/* 3D Z-Space Blog Tunnel Cards */}
             <div
@@ -399,6 +464,14 @@ export default function PerspectiveTunnelHero() {
                         stage={stage}
                     />
                 ))}
+            </div>
+
+            {/* Bottom 3D Tunnel Progress Bar: moves right and fills completely when animation finishes */}
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#e8dfd3]/80 z-40 overflow-hidden">
+                <motion.div
+                    style={{ width: progressWidth }}
+                    className="h-full bg-gradient-to-r from-[#d97706] via-[#b45309] to-[#78350f] shadow-[0_0_10px_rgba(217,119,6,0.7)]"
+                />
             </div>
         </div>
     );

@@ -1,7 +1,6 @@
 "use client";
 
-import { ShieldAlert, Sparkles, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { Sparkles, CheckCircle2, XCircle } from "lucide-react";
 
 export default function WebComparison() {
   return (
@@ -58,10 +57,6 @@ export default function WebComparison() {
                 </li>
               </ul>
             </div>
-
-            <div className="pt-6 mt-6 border-t border-[#ddcfbb] text-xs font-mono text-[#8c7e6c]">
-              Result: Fragmented attention & cognitive fatigue.
-            </div>
           </div>
 
           {/* Card 2: The Small Web Reader */}
@@ -99,18 +94,6 @@ export default function WebComparison() {
                   <span><strong>Open Web Portability:</strong> 1-Click OPML export and import. Your library always belongs to you.</span>
                 </li>
               </ul>
-            </div>
-
-            <div className="pt-6 mt-6 border-t border-[#f0e6d6] flex items-center justify-between">
-              <span className="text-xs font-mono text-[#92400e] font-semibold">
-                Result: Uninterrupted, intentional reading.
-              </span>
-              <Link
-                href="/reader"
-                className="text-xs font-mono text-[#b45309] hover:text-[#92400e] flex items-center gap-1 font-bold group"
-              >
-                Experience it <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-              </Link>
             </div>
           </div>
         </div>
