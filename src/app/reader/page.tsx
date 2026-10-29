@@ -25,7 +25,8 @@ import {
   PanelLeftOpen,
   ChevronLeft,
   ChevronRight,
-  Share2
+  Orbit,
+  Moon
 } from "lucide-react";
 import ConstellationGraph from "@/components/graph/ConstellationGraph";
 
@@ -177,8 +178,9 @@ export default function ReaderDashboard() {
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Bonus Innovation 1: Constellation Graph View Mode
+  // Mystic Mikado Constellation State
   const [viewMode, setViewMode] = useState<"timeline" | "graph">("timeline");
+  const [isConstellationModalOpen, setIsConstellationModalOpen] = useState(false);
 
   // Change 1: Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
@@ -579,18 +581,19 @@ export default function ReaderDashboard() {
               </button>
 
               <button
-                onClick={() => setViewMode("graph")}
+                onClick={() => { setViewMode("graph"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
                   viewMode === "graph"
-                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    ? "bg-[#101229] text-[#fbbf24] shadow-xs border border-[#d4af37]/40"
                     : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
                 <span className="flex items-center gap-2.5">
-                  <Share2 className="w-4 h-4 text-[#b45309]" /> Constellation
+                  <Orbit className={`w-4 h-4 ${viewMode === "graph" ? "text-[#fbbf24] animate-spin" : "text-[#b45309]"}`} style={{ animationDuration: "16s" }} />
+                  <span>Constellation</span>
                 </span>
-                <span className="text-[9px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold border border-[#fde68a]">
-                  Bonus
+                <span className="text-[10px] font-mono text-[#b45309] font-bold">
+                  星座
                 </span>
               </button>
             </div>
@@ -712,16 +715,16 @@ export default function ReaderDashboard() {
           </button>
         )}
 
-        {/* 2. CENTER FEED (Chronological Timeline or Constellation Graph) */}
+        {/* 2. CENTER FEED (Chronological Timeline or Constellation Portal) */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-[#fbf8f2]">
-          <div className={`p-6 sm:p-8 mx-auto w-full space-y-6 ${viewMode === "graph" ? "max-w-6xl" : "max-w-4xl"}`}>
+          <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
             
             {/* Header Title & Actions */}
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
               <div>
                 <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
                   {viewMode === "graph"
-                    ? "Constellation Graph."
+                    ? "Mystic Constellation."
                     : selectedBlogId
                     ? subscriptions.find(s => s.id === selectedBlogId)?.name
                     : activeTab === "unread"
@@ -732,65 +735,103 @@ export default function ReaderDashboard() {
                 </h2>
                 <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
                   {viewMode === "graph"
-                    ? "Interactive 2D physics graph discovering co-subscription proximity clusters across the small web."
+                    ? "Decentralized Small Web co-subscription graph • PECFest Mystic Mikado Special Edition"
                     : "Latest writings from your curated library. Sorted purely by chronologic delivery."}
                 </p>
               </div>
 
-              {/* View Switcher Toggle & Actions */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Segmented View Mode Control */}
-                <div className="flex items-center p-1 rounded-xl bg-[#f4ece1] border border-[#e2d6c3] shadow-2xs">
-                  <button
-                    onClick={() => setViewMode("timeline")}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-serif font-medium transition-all ${
-                      viewMode === "timeline"
-                        ? "bg-[#fdfaf5] text-[#b45309] shadow-xs font-bold"
-                        : "text-[#786b59] hover:text-[#1f1c19]"
-                    }`}
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>Timeline</span>
-                  </button>
-
-                  <button
-                    onClick={() => setViewMode("graph")}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-serif font-medium transition-all ${
-                      viewMode === "graph"
-                        ? "bg-[#fdfaf5] text-[#b45309] shadow-xs font-bold"
-                        : "text-[#786b59] hover:text-[#1f1c19]"
-                    }`}
-                  >
-                    <Share2 className="w-3.5 h-3.5 text-[#b45309]" />
-                    <span>Constellation</span>
-                    <span className="hidden sm:inline-block text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
-                      Bonus
-                    </span>
-                  </button>
-                </div>
-
-                {viewMode === "timeline" && (
-                  <>
-                    <span className="text-xs font-mono text-[#8c7e6c] hidden sm:inline">
-                      {filteredArticles.length} essays
-                    </span>
-                    <button
-                      onClick={markAllRead}
-                      className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
-                    >
-                      Mark all read
-                    </button>
-                  </>
-                )}
+              {/* Feed Actions (Clean - No top menu switch) */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono text-[#8c7e6c]">
+                  {filteredArticles.length} essays
+                </span>
+                <button
+                  onClick={markAllRead}
+                  className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
+                >
+                  Mark all read
+                </button>
               </div>
             </div>
 
-            {/* View Mode Rendering: Graph or Articles Feed */}
+            {/* View Mode Rendering: Portal Gate or Articles Feed */}
             {viewMode === "graph" ? (
-              <ConstellationGraph
-                onSubscribeFeed={handleGraphSubscribe}
-                onOpenArticle={handleGraphOpenArticle}
-              />
+              <div className="py-4 space-y-8 font-serif">
+                {/* Mystic Mikado Portal Gate Card */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c0e22] via-[#090a18] to-[#05060f] border border-[#d4af37]/40 shadow-2xl p-8 sm:p-12 text-[#f3f0e6] space-y-6">
+                  
+                  {/* Subtle Japanese Watermark in Background */}
+                  <div className="absolute -right-4 -bottom-6 select-none pointer-events-none text-[160px] font-serif font-black text-[#d4af37]/5 leading-none">
+                    星座
+                  </div>
+
+                  <div className="space-y-3 relative z-10">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#fbbf24] px-2.5 py-0.5 rounded-full bg-[#fbbf24]/10 border border-[#fbbf24]/30">
+                        PECFest 2026 • Mystic Mikado
+                      </span>
+                      <span className="text-xs font-mono text-[#94a3b8]">神秘の星座探訪</span>
+                    </div>
+
+                    <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight leading-tight">
+                      Mystic Constellation Graph
+                    </h2>
+
+                    <p className="text-sm text-[#cbd5e1] leading-relaxed max-w-xl font-serif">
+                      Step into the Japanese celestial night sky. Explore independent small web writers clustered by organic reader gravity and co-subscription affinities — completely insulated from corporate surveillance algorithms.
+                    </p>
+                  </div>
+
+                  {/* Feature Pillars */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 relative z-10">
+                    <div className="p-4 rounded-2xl bg-[#121429]/80 border border-[#d4af37]/25 space-y-1.5">
+                      <div className="text-xs font-mono text-[#fbbf24] flex items-center gap-1.5 font-bold">
+                        <Orbit className="w-3.5 h-3.5" /> 探索 Explore
+                      </div>
+                      <p className="text-[11px] text-[#94a3b8] leading-snug">
+                        2D physics celestial gravity clusters of independent small web blogs.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#121429]/80 border border-[#d4af37]/25 space-y-1.5">
+                      <div className="text-xs font-mono text-[#fbbf24] flex items-center gap-1.5 font-bold">
+                        <Sparkles className="w-3.5 h-3.5" /> 縁 Affinity
+                      </div>
+                      <p className="text-[11px] text-[#94a3b8] leading-snug">
+                        Discover peer overlapping recommendations with verified affinity scores.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#121429]/80 border border-[#d4af37]/25 space-y-1.5">
+                      <div className="text-xs font-mono text-[#fbbf24] flex items-center gap-1.5 font-bold">
+                        <BookOpen className="w-3.5 h-3.5" /> 読書 Discovery
+                      </div>
+                      <p className="text-[11px] text-[#94a3b8] leading-snug">
+                        1-click follow blogs or instantly slide open latest essays in reader view.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Big Glowing Enter Button */}
+                  <div className="pt-4 relative z-10 flex flex-wrap items-center gap-4">
+                    <button
+                      onClick={() => setIsConstellationModalOpen(true)}
+                      className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#b45309] via-[#d97706] to-[#fbbf24] hover:opacity-95 text-[#05060f] font-serif font-bold text-sm shadow-xl shadow-amber-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <Orbit className="w-4 h-4 text-[#05060f]" />
+                      <span>✦ Enter Mystic Constellation (全画面) ✦</span>
+                    </button>
+
+                    <button
+                      onClick={() => setViewMode("timeline")}
+                      className="text-xs font-serif text-[#94a3b8] hover:text-[#fef08a] transition-colors underline underline-offset-4"
+                    >
+                      Return to Timeline
+                    </button>
+                  </div>
+
+                </div>
+              </div>
             ) : filteredArticles.length === 0 ? (
               <div className="py-20 text-center space-y-3">
                 <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
@@ -1168,6 +1209,29 @@ export default function ReaderDashboard() {
               </div>
 
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Full-Screen Windowed Mystic Mikado Constellation Modal */}
+      <AnimatePresence>
+        {isConstellationModalOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="fixed inset-0 z-50 bg-[#05060f] flex flex-col"
+          >
+            <ConstellationGraph
+              isFullScreenModal={true}
+              onSubscribeFeed={handleGraphSubscribe}
+              onOpenArticle={(title, author) => {
+                setIsConstellationModalOpen(false);
+                handleGraphOpenArticle(title, author);
+              }}
+              onClose={() => setIsConstellationModalOpen(false)}
+            />
           </motion.div>
         )}
       </AnimatePresence>
