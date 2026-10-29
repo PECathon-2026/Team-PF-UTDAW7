@@ -1,5 +1,5 @@
 /**
- * Client-Side RSS & Atom Feed Parser with Autodiscovery and Extreme Resilience.
+ * Client-Side RSS & Atom Feed Parser with Autodiscovery and Robust Media Handling.
  * PS-003: Task B: Autodiscovery, RSS/Atom support, chronological timeline, resilience.
  */
 
@@ -28,6 +28,43 @@ export interface ParsedFeed {
   description: string;
   category: string;
   articles: ParsedArticle[];
+}
+
+export const VERIFIED_EDITORIAL_IMAGES = [
+  "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=800&q=80",
+];
+
+export function getFallbackImage(seed: number | string = 0): string {
+  const num = typeof seed === "number" ? Math.abs(seed) : Math.abs(hashString(String(seed)));
+  return VERIFIED_EDITORIAL_IMAGES[num % VERIFIED_EDITORIAL_IMAGES.length];
+}
+
+export function cleanImageUrl(raw?: string | null): string {
+  if (!raw || typeof raw !== "string") return "";
+  let clean = raw.trim();
+  clean = clean.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  // Decode HTML entities commonly found in RSS image query strings
+  clean = clean
+    .replace(/&#038;/g, "&")
+    .replace(/&#38;/g, "&")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "")
+    .replace(/&#x27;/g, "")
+    .replace(/&#39;/g, "");
+  // Strip surrounding quotes
+  clean = clean.replace(/^['"]+|['"]+$/g, "");
+  // Handle protocol-relative URLs
+  if (clean.startsWith("//")) {
+    clean = "https:" + clean;
+  }
+  if (!/^https?:\/\//i.test(clean)) return "";
+  return clean;
 }
 
 function cleanText(raw?: string | null): string {
@@ -78,8 +115,7 @@ export async function autodiscoverFeedUrl(siteUrl: string): Promise<string> {
     cleanUrl = "https://" + cleanUrl;
   }
 
-  // Smart alias for Hacker News: uses the public high-availability hnrss gateway
-  // because news.ycombinator.com/rss actively blocks proxy crawlers with HTTP 419
+  // Smart alias for Hacker News
   if (
     cleanUrl.includes("news.ycombinator.com") ||
     cleanUrl.includes("ycombinator") ||
@@ -133,7 +169,7 @@ export async function autodiscoverFeedUrl(siteUrl: string): Promise<string> {
     // Continue to fallback paths
   }
 
-  // Regex fallback for <link rel="alternate"> in case DOMParser was constrained
+  // Regex fallback for <link rel="alternate">
   const regexLink = initialText.match(/<link[^>]+rel=["']alternate["'][^>]*>/gi);
   if (regexLink) {
     for (const tag of regexLink) {
@@ -172,7 +208,6 @@ export async function autodiscoverFeedUrl(siteUrl: string): Promise<string> {
     }
   }
 
-  // If none matched, default to original URL
   return cleanUrl;
 }
 
@@ -227,12 +262,33 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
         const excerpt = cleanText(summaryText || contentText).slice(0, 220) + "...";
         const readTime = calculateReadingTime(contentText || summaryText);
 
+        // Robust Image Extraction: Media, Enclosure, or inline <img>
         let image = "";
-        const imgMatch = (contentText || summaryText).match(/<img[^>]+src=["']([^"']+)["']/i);
-        if (imgMatch && imgMatch[1]) {
-          image = imgMatch[1];
-        } else {
-          image = `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`;
+        const mediaContent =
+          entry.getElementsByTagName("media:content")[0] ||
+          entry.getElementsByTagName("media:thumbnail")[0] ||
+          entry.querySelector?.("media\\:content, content[url]") ||
+          entry.querySelector?.("media\\:thumbnail");
+        if (mediaContent?.getAttribute("url")) {
+          image = cleanImageUrl(mediaContent.getAttribute("url"));
+        }
+
+        if (!image) {
+          const enclosure = entry.getElementsByTagName("enclosure")[0] || entry.querySelector?.("enclosure");
+          if (enclosure?.getAttribute("url")) {
+            image = cleanImageUrl(enclosure.getAttribute("url"));
+          }
+        }
+
+        if (!image) {
+          const imgMatch = (contentText || summaryText).match(/<img[^>]+(?:src|data-src)=["']?([^"'>\s]+)["']?/i);
+          if (imgMatch && imgMatch[1]) {
+            image = cleanImageUrl(imgMatch[1]);
+          }
+        }
+
+        if (!image) {
+          image = getFallbackImage(articles.length);
         }
 
         articles.push({
@@ -274,17 +330,33 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
         const excerpt = cleanText(description || encodedContent).slice(0, 220) + "...";
         const readTime = calculateReadingTime(rawContent);
 
+        // Robust Image Extraction: Enclosure, Media, or inline <img>
         let image = "";
-        const enclosure = item.querySelector('enclosure[type^="image"]');
+        const enclosure = item.getElementsByTagName("enclosure")[0] || item.querySelector?.("enclosure");
         if (enclosure?.getAttribute("url")) {
-          image = enclosure.getAttribute("url")!;
-        } else {
-          const imgMatch = rawContent.match(/<img[^>]+src=["']([^"']+)["']/i);
-          if (imgMatch && imgMatch[1]) {
-            image = imgMatch[1];
-          } else {
-            image = `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`;
+          image = cleanImageUrl(enclosure.getAttribute("url"));
+        }
+
+        if (!image) {
+          const media =
+            item.getElementsByTagName("media:content")[0] ||
+            item.getElementsByTagName("media:thumbnail")[0] ||
+            item.querySelector?.("media\\:content") ||
+            item.querySelector?.("media\\:thumbnail");
+          if (media?.getAttribute("url")) {
+            image = cleanImageUrl(media.getAttribute("url"));
           }
+        }
+
+        if (!image) {
+          const imgMatch = rawContent.match(/<img[^>]+(?:src|data-src)=["']?([^"'>\s]+)["']?/i);
+          if (imgMatch && imgMatch[1]) {
+            image = cleanImageUrl(imgMatch[1]);
+          }
+        }
+
+        if (!image) {
+          image = getFallbackImage(articles.length);
         }
 
         articles.push({
@@ -307,7 +379,7 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
     }
   }
 
-  // Regex Fallback if articles is empty (handles broken or unclosed XML tags)
+  // Regex Fallback if DOMParser produced 0 articles
   if (articles.length === 0) {
     feedTitle = feedTitle || hostname;
     const blocks =
@@ -337,6 +409,25 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
       const excerpt = cleanText(content).slice(0, 220) + "...";
       const timestamp = dateMatch ? new Date(dateMatch[1]).getTime() : Date.now();
 
+      // Image from block
+      let image = "";
+      const encMatch =
+        block.match(/<enclosure[^>]+url=["']([^"']+)["']/i) ||
+        block.match(/<media:content[^>]+url=["']([^"']+)["']/i) ||
+        block.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i);
+      if (encMatch && encMatch[1]) {
+        image = cleanImageUrl(encMatch[1]);
+      } else {
+        const inlineImg = content.match(/<img[^>]+(?:src|data-src)=["']?([^"'>\s]+)["']?/i);
+        if (inlineImg && inlineImg[1]) {
+          image = cleanImageUrl(inlineImg[1]);
+        }
+      }
+
+      if (!image) {
+        image = getFallbackImage(articles.length);
+      }
+
       articles.push({
         id: "art-" + Math.abs(hashString(url || title)),
         blogId: feedId,
@@ -350,7 +441,7 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
         publishedAt: timestamp,
         unread: true,
         saved: false,
-        image: `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`,
+        image,
         url,
       });
     }

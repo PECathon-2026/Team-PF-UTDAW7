@@ -78,7 +78,7 @@ export async function extractFullArticle(
         "sub",
         "sup",
       ],
-      ALLOWED_ATTR: ["href", "src", "alt", "title", "class", "target", "rel"],
+      ALLOWED_ATTR: ["href", "src", "alt", "title", "class", "target", "rel", "referrerpolicy", "loading"],
     });
 
     return {

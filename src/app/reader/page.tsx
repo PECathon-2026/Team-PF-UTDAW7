@@ -35,6 +35,8 @@ import {
   autodiscoverFeedUrl,
   parseFeedXml,
   ParsedArticle,
+  getFallbackImage,
+  cleanImageUrl,
 } from "@/lib/client/feedParser";
 import { extractFullArticle } from "@/lib/client/articleExtractor";
 import {
@@ -201,7 +203,7 @@ const INITIAL_ARTICLES: Article[] = [
     date: "Yesterday",
     unread: false,
     saved: true,
-    image: "https://images.unsplash.com/photo-1507842229451-7f01be7fe8e0?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80",
     url: "https://alistapart.com/humane-interface",
   },
   {
@@ -296,7 +298,13 @@ export default function ReaderDashboard() {
     async function initStorage() {
       // Load cached data from IndexedDB immediately (Task E: instant load)
       const storedSubs = await loadStoredSubscriptions(INITIAL_SUBSCRIPTIONS as any);
-      const storedArts = await loadStoredArticles(INITIAL_ARTICLES as any);
+      let storedArts = await loadStoredArticles(INITIAL_ARTICLES as any);
+
+      // Clean/sanitize existing cached article images (repairs &#038; entities or broken IDs)
+      storedArts = storedArts.map((a) => ({
+        ...a,
+        image: cleanImageUrl(a.image) || getFallbackImage(a.id),
+      }));
 
       if (!isMounted) return;
       setSubscriptions(storedSubs as any);
@@ -1135,8 +1143,17 @@ export default function ReaderDashboard() {
                         {/* Editorial Thumbnail */}
                         <div className="w-full sm:w-40 h-28 rounded-xl overflow-hidden border border-[#e8dfd1] flex-shrink-0 bg-[#f4ece1] shadow-xs">
                           <img
-                            src={article.image}
+                            src={article.image || getFallbackImage(article.id)}
                             alt={article.title}
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              const fallback = getFallbackImage(article.id);
+                              if (target.src !== fallback) {
+                                target.src = fallback;
+                              }
+                            }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                         </div>
