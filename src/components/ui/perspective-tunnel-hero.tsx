@@ -319,15 +319,10 @@ export default function PerspectiveTunnelHero() {
                     </div>
                     <div>
                         <span className="font-serif font-medium text-base tracking-tight text-[#1f1c19]">The Small Web Reader</span>
-                        <span className="ml-2.5 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#fde68a]/60 text-[#92400e] border border-[#f59e0b]/30">PECathon 2026</span>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-5">
-                    <div className="hidden md:flex items-center gap-5 text-xs font-mono text-[#786b59]">
-                        <span className="flex items-center gap-1.5"><Coffee className="w-3.5 h-3.5 text-[#b45309]" /> Slow Reading</span>
-                        <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-[#b45309]" /> Zero Tracking</span>
-                    </div>
                     <Link
                         href="/reader"
                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#b45309] text-white hover:bg-[#92400e] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm shadow-[#b45309]/20"
@@ -350,11 +345,6 @@ export default function PerspectiveTunnelHero() {
                 style={{ scale: titleScale, opacity: titleOpacity }}
                 className="pointer-events-none z-10 flex flex-col items-center text-center px-6 max-w-2xl"
             >
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#f3ecdf] border border-[#e2d6c3] text-[#92400e] text-xs font-mono tracking-widest uppercase mb-5 shadow-xs">
-                    <Feather className="w-3.5 h-3.5 text-[#b45309]" />
-                    <span>Independent Voices • Ad-Free</span>
-                </div>
-                
                 <h1 className="text-4xl sm:text-6xl md:text-7xl font-serif font-normal tracking-tight leading-[1.08] text-[#1f1c19]">
                     Read the Original Web.
                     <br />
@@ -364,24 +354,6 @@ export default function PerspectiveTunnelHero() {
                 <p className="mt-5 max-w-[44ch] text-sm sm:text-base font-serif text-[#574e44] leading-relaxed">
                     A calm, offline-first sanctuary for longform thinkers, digital gardens, and indie blogs. Discovered through human reader overlap, never corporate tracking.
                 </p>
-
-                {/* Primary Action Buttons: Always visible & clickable */}
-                <div
-                    className="pointer-events-auto mt-7 flex flex-wrap items-center justify-center gap-3.5 z-20"
-                >
-                    <Link
-                        href="/reader"
-                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm transition-all shadow-md shadow-[#b45309]/20 hover:scale-105"
-                    >
-                        <span>Get Started</span> <ArrowRight className="w-4 h-4 text-white" />
-                    </Link>
-                    <Link
-                        href="/discover"
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#fffdfa]/90 backdrop-blur-sm border border-[#d6caba] text-[#1f1c19] font-serif font-medium text-sm hover:border-[#b45309]/60 hover:bg-[#faf5eb] transition-all"
-                    >
-                        <Compass className="w-4 h-4 text-[#b45309]" /> Anonymous Discovery
-                    </Link>
-                </div>
             </motion.div>
 
             {/* Warm Quill Scroll Prompt */}

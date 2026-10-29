@@ -5,7 +5,6 @@ import { Cpu, Users, Eye, Database, ShieldCheck, Share2, Compass, Network } from
 const PILLARS = [
   {
     icon: Users,
-    tag: "Task D • Core Challenge",
     title: "Anonymous Co-Subscription Engine",
     description:
       "No accounts, no tracking cookies, no persistent IDs. Recommendations are calculated purely from collective reader co-occurrence: if readers of Blog A also read Blog B, B is recommended with transparent mathematical reasoning.",
@@ -13,7 +12,6 @@ const PILLARS = [
   },
   {
     icon: Eye,
-    tag: "Task C • Full-Text Reading",
     title: "Mozilla Readability + DOMPurify",
     description:
       "Fetches the raw article through an SSRF-protected CORS gateway, strips out trackers, popups, and clutter using Readability heuristics, and sanitizes all HTML before rendering. Pure, bookish typography.",
@@ -21,7 +19,6 @@ const PILLARS = [
   },
   {
     icon: Database,
-    tag: "Task E • Offline-First Storage",
     title: "IndexedDB Persistent Client Vault",
     description:
       "All subscribed feeds, article summaries, full-text bodies, and read states are saved in your browser's local IndexedDB. Open your laptop on a flight or subway with zero Wi-Fi, and your library loads in 5 milliseconds.",
@@ -29,7 +26,6 @@ const PILLARS = [
   },
   {
     icon: Network,
-    tag: "Bonus Quest • Graph Cosmos",
     title: "'Blogs Like This' Network Graph",
     description:
       "An interactive visual graph view mapping the interconnected topology of independent writers. Explore cosmic constellations of thinkers based on co-subscription clusters and shared blogrolls.",
@@ -49,9 +45,6 @@ export default function CorePillars() {
           <h2 className="text-3xl sm:text-5xl font-serif font-normal text-[#1f1c19] tracking-tight">
             Built on Principles of Autonomy & Privacy
           </h2>
-          <p className="font-serif text-[#6b5f50] text-sm sm:text-base leading-relaxed">
-            Every layer is engineered to adhere strictly to the PECathon PS-003 specification: high client-side agency, resilient fallback pipelines, and cryptographic abuse protection.
-          </p>
         </div>
 
         {/* Pillars Grid */}
@@ -68,9 +61,6 @@ export default function CorePillars() {
                     <div className="w-11 h-11 rounded-xl bg-[#f5ecdd] border border-[#e2d4c0] flex items-center justify-center text-[#b45309] group-hover:scale-105 transition-transform">
                       <Icon className="w-5 h-5" />
                     </div>
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-[#92400e] bg-[#fdf5e8] px-2.5 py-0.5 rounded-full border border-[#fde68a]">
-                      {pillar.tag}
-                    </span>
                   </div>
 
                   <h3 className="text-xl sm:text-2xl font-serif font-medium text-[#1f1c19] group-hover:text-[#b45309] transition-colors">
