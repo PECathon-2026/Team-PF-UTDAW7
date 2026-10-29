@@ -399,7 +399,7 @@ export default function PerspectiveTunnelHero() {
                 href="#features"
                 className="pointer-events-auto absolute bottom-3.5 z-30 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f3ecdf]/90 border border-[#e2d6c3] text-[11px] font-mono text-[#786b59] hover:text-[#b45309] hover:bg-[#fffdfa] transition-all shadow-xs backdrop-blur-sm cursor-pointer"
             >
-                <span>Explore Architecture & Seed Library</span>
+                <span>Explore System Architecture</span>
                 <ChevronDown className="w-3.5 h-3.5 text-[#b45309] animate-bounce" />
             </a>
 

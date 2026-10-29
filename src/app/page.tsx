@@ -1,7 +1,6 @@
 import PerspectiveTunnelHero from "@/components/ui/perspective-tunnel-hero";
 import WebComparison from "@/components/landing/WebComparison";
 import CorePillars from "@/components/landing/CorePillars";
-import CuratedShelf from "@/components/landing/CuratedShelf";
 import SecurityThreatModel from "@/components/landing/SecurityThreatModel";
 import LandingFooter from "@/components/landing/LandingFooter";
 
@@ -16,9 +15,6 @@ export default function Home() {
 
       {/* Technical Architecture & Pillars */}
       <CorePillars />
-
-      {/* Official PS-003 Seed Dataset & Curated Independent Shelf */}
-      <CuratedShelf />
 
       {/* Rubric Security & Threat Model with Live Inspector */}
       <SecurityThreatModel />
