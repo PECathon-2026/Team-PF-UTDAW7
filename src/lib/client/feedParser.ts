@@ -1,5 +1,5 @@
 /**
- * Client-Side RSS & Atom Feed Parser with Autodiscovery and Error Resilience.
+ * Client-Side RSS & Atom Feed Parser with Autodiscovery and Extreme Resilience.
  * PS-003: Task B: Autodiscovery, RSS/Atom support, chronological timeline, resilience.
  */
 
@@ -35,6 +35,11 @@ function cleanText(raw?: string | null): string {
   return raw
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -55,6 +60,13 @@ function formatRelativeTime(timestamp: number): string {
 
   const d = new Date(timestamp);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function getTagText(parent: Element | Document, tag: string): string {
+  const direct = parent.getElementsByTagName(tag)[0];
+  if (direct && direct.textContent) return direct.textContent.trim();
+  const query = parent.querySelector(tag);
+  return query?.textContent?.trim() || "";
 }
 
 /**
@@ -91,22 +103,37 @@ export async function autodiscoverFeedUrl(siteUrl: string): Promise<string> {
 
   // 2. Parse HTML looking for <link rel="alternate" ...>
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(initialText, "text/html");
-    const linkTags = Array.from(doc.querySelectorAll('link[rel="alternate"]'));
+    if (typeof window !== "undefined" && typeof DOMParser !== "undefined") {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(initialText, "text/html");
+      const linkTags = Array.from(doc.querySelectorAll('link[rel="alternate"]'));
 
-    for (const tag of linkTags) {
-      const type = (tag.getAttribute("type") || "").toLowerCase();
-      const href = tag.getAttribute("href");
-      if (
-        (type.includes("rss") || type.includes("atom") || type.includes("xml")) &&
-        href
-      ) {
-        return new URL(href, cleanUrl).toString();
+      for (const tag of linkTags) {
+        const type = (tag.getAttribute("type") || "").toLowerCase();
+        const href = tag.getAttribute("href");
+        if (
+          (type.includes("rss") || type.includes("atom") || type.includes("xml")) &&
+          href
+        ) {
+          return new URL(href, cleanUrl).toString();
+        }
       }
     }
   } catch {
     // Continue to fallback paths
+  }
+
+  // Regex fallback for <link rel="alternate"> in case DOMParser was constrained
+  const regexLink = initialText.match(/<link[^>]+rel=["']alternate["'][^>]*>/gi);
+  if (regexLink) {
+    for (const tag of regexLink) {
+      if (/type=["'][^"']*(rss|atom|xml)[^"']*["']/i.test(tag)) {
+        const hrefMatch = tag.match(/href=["']([^"']+)["']/i);
+        if (hrefMatch && hrefMatch[1]) {
+          return new URL(hrefMatch[1], cleanUrl).toString();
+        }
+      }
+    }
   }
 
   // 3. Fallback: probe common feed suffixes
@@ -144,125 +171,161 @@ export async function autodiscoverFeedUrl(siteUrl: string): Promise<string> {
  */
 export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
   let cleanXml = xmlString.trim();
-  // Strip UTF-8 BOM if present
   if (cleanXml.charCodeAt(0) === 0xfeff) {
     cleanXml = cleanXml.slice(1);
   }
 
-  const parser = new DOMParser();
-  let doc = parser.parseFromString(cleanXml, "text/xml");
-
-  if (doc.querySelector("parsererror")) {
-    // Attempt fallback parsing as text/html for malformed XML
-    doc = parser.parseFromString(cleanXml, "text/html");
-  }
-
+  const hostname = new URL(feedUrl).hostname.replace(/^www\./, "");
   const feedId = "feed-" + Math.abs(hashString(feedUrl));
 
-  // Determine feed category and name
-  const hostname = new URL(feedUrl).hostname.replace(/^www\./, "");
   let feedTitle = "";
   let feedDescription = "";
   let siteUrl = "";
-
   const articles: ParsedArticle[] = [];
 
-  // Check if Atom Feed (<feed>)
-  const isAtom = doc.querySelector("feed") !== null;
+  // Parse using browser DOMParser if available
+  if (typeof DOMParser !== "undefined") {
+    const parser = new DOMParser();
+    let doc = parser.parseFromString(cleanXml, "text/xml");
 
-  if (isAtom) {
-    const feedNode = doc.querySelector("feed")!;
-    feedTitle = cleanText(feedNode.querySelector("title")?.textContent) || hostname;
-    feedDescription = cleanText(feedNode.querySelector("subtitle")?.textContent);
-
-    const siteLink = feedNode.querySelector('link[rel="alternate"]') || feedNode.querySelector("link");
-    siteUrl = siteLink?.getAttribute("href") || feedUrl;
-
-    const entries = Array.from(feedNode.querySelectorAll("entry"));
-    for (const entry of entries) {
-      const title = cleanText(entry.querySelector("title")?.textContent) || "Untitled Entry";
-      const linkTag = entry.querySelector('link[rel="alternate"]') || entry.querySelector("link");
-      const url = linkTag?.getAttribute("href") || entry.querySelector("id")?.textContent || feedUrl;
-
-      const dateStr =
-        entry.querySelector("published")?.textContent ||
-        entry.querySelector("updated")?.textContent ||
-        "";
-      const timestamp = dateStr ? new Date(dateStr).getTime() : Date.now();
-
-      const summaryText = entry.querySelector("summary")?.textContent || "";
-      const contentText =
-        entry.querySelector("content")?.textContent || summaryText;
-
-      const excerpt = cleanText(summaryText || contentText).slice(0, 220) + "...";
-      const readTime = calculateReadingTime(contentText || summaryText);
-
-      // Extract image if available
-      let image = "";
-      const imgMatch = (contentText || "").match(/<img[^>]+src=["']([^"']+)["']/i);
-      if (imgMatch && imgMatch[1]) {
-        image = imgMatch[1];
-      } else {
-        image = `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`;
-      }
-
-      articles.push({
-        id: "art-" + Math.abs(hashString(url || title)),
-        blogId: feedId,
-        blogName: feedTitle,
-        category: "Indie Web",
-        title,
-        excerpt,
-        content: contentText || `<p>${excerpt}</p>`,
-        readTime,
-        date: formatRelativeTime(timestamp),
-        publishedAt: timestamp,
-        unread: true,
-        saved: false,
-        image,
-        url,
-      });
+    if (doc.querySelector("parsererror")) {
+      doc = parser.parseFromString(cleanXml, "text/html");
     }
-  } else {
-    // RSS 2.0 (<rss><channel>) or RDF (<rdf:RDF>)
-    const channel = doc.querySelector("channel") || doc;
-    feedTitle = cleanText(channel.querySelector("title")?.textContent) || hostname;
-    feedDescription = cleanText(channel.querySelector("description")?.textContent);
-    siteUrl = channel.querySelector("link")?.textContent?.trim() || feedUrl;
 
-    const items = Array.from(doc.querySelectorAll("item"));
-    for (const item of items) {
-      const title = cleanText(item.querySelector("title")?.textContent) || "Untitled Article";
-      const url =
-        item.querySelector("link")?.textContent?.trim() ||
-        item.querySelector("guid")?.textContent?.trim() ||
-        feedUrl;
+    const isAtom = doc.querySelector("feed") !== null;
 
-      const dateStr =
-        item.querySelector("pubDate")?.textContent ||
-        item.querySelector("date")?.textContent ||
-        "";
-      const timestamp = dateStr ? new Date(dateStr).getTime() : Date.now();
+    if (isAtom) {
+      const feedNode = doc.querySelector("feed")!;
+      feedTitle = cleanText(getTagText(feedNode, "title")) || hostname;
+      feedDescription = cleanText(getTagText(feedNode, "subtitle"));
 
-      const encodedContent = item.getElementsByTagName("content:encoded")[0]?.textContent || "";
-      const description = item.querySelector("description")?.textContent || "";
-      const rawContent = encodedContent || description;
+      const siteLink = feedNode.querySelector('link[rel="alternate"]') || feedNode.querySelector("link");
+      siteUrl = siteLink?.getAttribute("href") || feedUrl;
 
-      const excerpt = cleanText(description || encodedContent).slice(0, 220) + "...";
-      const readTime = calculateReadingTime(rawContent);
+      const entries = Array.from(feedNode.querySelectorAll("entry"));
+      for (const entry of entries) {
+        const title = cleanText(getTagText(entry, "title")) || "Untitled Entry";
+        const linkTag = entry.querySelector('link[rel="alternate"]') || entry.querySelector("link");
+        const url = linkTag?.getAttribute("href") || getTagText(entry, "id") || feedUrl;
 
-      let image = "";
-      const enclosure = item.querySelector('enclosure[type^="image"]');
-      if (enclosure?.getAttribute("url")) {
-        image = enclosure.getAttribute("url")!;
-      } else {
-        const imgMatch = rawContent.match(/<img[^>]+src=["']([^"']+)["']/i);
+        const dateStr = getTagText(entry, "published") || getTagText(entry, "updated") || "";
+        const timestamp = dateStr ? new Date(dateStr).getTime() : Date.now();
+
+        const summaryText = getTagText(entry, "summary");
+        const contentText = getTagText(entry, "content") || summaryText;
+
+        const excerpt = cleanText(summaryText || contentText).slice(0, 220) + "...";
+        const readTime = calculateReadingTime(contentText || summaryText);
+
+        let image = "";
+        const imgMatch = (contentText || summaryText).match(/<img[^>]+src=["']([^"']+)["']/i);
         if (imgMatch && imgMatch[1]) {
           image = imgMatch[1];
         } else {
           image = `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`;
         }
+
+        articles.push({
+          id: "art-" + Math.abs(hashString(url || title)),
+          blogId: feedId,
+          blogName: feedTitle,
+          category: "Indie Web",
+          title,
+          excerpt,
+          content: contentText || `<p>${excerpt}</p>`,
+          readTime,
+          date: formatRelativeTime(timestamp),
+          publishedAt: timestamp,
+          unread: true,
+          saved: false,
+          image,
+          url,
+        });
       }
+    } else {
+      // RSS 2.0 or RDF
+      const channel = doc.querySelector("channel") || doc;
+      feedTitle = cleanText(getTagText(channel, "title")) || hostname;
+      feedDescription = cleanText(getTagText(channel, "description"));
+      siteUrl = getTagText(channel, "link") || feedUrl;
+
+      const items = Array.from(doc.querySelectorAll("item"));
+      for (const item of items) {
+        const title = cleanText(getTagText(item, "title")) || "Untitled Article";
+        const url = getTagText(item, "link") || getTagText(item, "guid") || feedUrl;
+
+        const dateStr = getTagText(item, "pubDate") || getTagText(item, "date") || "";
+        const timestamp = dateStr ? new Date(dateStr).getTime() : Date.now();
+
+        const encodedContent = item.getElementsByTagName("content:encoded")[0]?.textContent || "";
+        const description = getTagText(item, "description");
+        const rawContent = encodedContent || description;
+
+        const excerpt = cleanText(description || encodedContent).slice(0, 220) + "...";
+        const readTime = calculateReadingTime(rawContent);
+
+        let image = "";
+        const enclosure = item.querySelector('enclosure[type^="image"]');
+        if (enclosure?.getAttribute("url")) {
+          image = enclosure.getAttribute("url")!;
+        } else {
+          const imgMatch = rawContent.match(/<img[^>]+src=["']([^"']+)["']/i);
+          if (imgMatch && imgMatch[1]) {
+            image = imgMatch[1];
+          } else {
+            image = `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`;
+          }
+        }
+
+        articles.push({
+          id: "art-" + Math.abs(hashString(url || title)),
+          blogId: feedId,
+          blogName: feedTitle,
+          category: "Indie Web",
+          title,
+          excerpt,
+          content: rawContent || `<p>${excerpt}</p>`,
+          readTime,
+          date: formatRelativeTime(timestamp),
+          publishedAt: timestamp,
+          unread: true,
+          saved: false,
+          image,
+          url,
+        });
+      }
+    }
+  }
+
+  // Regex Fallback if articles is empty (handles broken or unclosed XML tags)
+  if (articles.length === 0) {
+    feedTitle = feedTitle || hostname;
+    const blocks =
+      cleanXml.match(/<item[\s\S]*?<\/item>/gi) ||
+      cleanXml.match(/<entry[\s\S]*?<\/entry>/gi) ||
+      [];
+
+    for (const block of blocks) {
+      const titleMatch = block.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const linkMatch =
+        block.match(/<link[^>]+href=["']([^"']+)["']/i) ||
+        block.match(/<link[^>]*>([\s\S]*?)<\/link>/i) ||
+        block.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
+      const descMatch =
+        block.match(/<content:encoded[^>]*>([\s\S]*?)<\/content:encoded>/i) ||
+        block.match(/<content[^>]*>([\s\S]*?)<\/content>/i) ||
+        block.match(/<description[^>]*>([\s\S]*?)<\/description>/i) ||
+        block.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i);
+      const dateMatch =
+        block.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i) ||
+        block.match(/<published[^>]*>([\s\S]*?)<\/published>/i) ||
+        block.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i);
+
+      const title = cleanText(titleMatch ? titleMatch[1] : "Untitled Entry");
+      const url = cleanText(linkMatch ? linkMatch[1] : feedUrl);
+      const content = descMatch ? descMatch[1] : "";
+      const excerpt = cleanText(content).slice(0, 220) + "...";
+      const timestamp = dateMatch ? new Date(dateMatch[1]).getTime() : Date.now();
 
       articles.push({
         id: "art-" + Math.abs(hashString(url || title)),
@@ -271,13 +334,13 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
         category: "Indie Web",
         title,
         excerpt,
-        content: rawContent || `<p>${excerpt}</p>`,
-        readTime,
+        content: content || `<p>${excerpt}</p>`,
+        readTime: calculateReadingTime(content),
         date: formatRelativeTime(timestamp),
         publishedAt: timestamp,
         unread: true,
         saved: false,
-        image,
+        image: `https://images.unsplash.com/photo-${1455390582262 + (articles.length % 5)}?auto=format&fit=crop&w=800&q=80`,
         url,
       });
     }
@@ -288,9 +351,9 @@ export function parseFeedXml(xmlString: string, feedUrl: string): ParsedFeed {
 
   return {
     id: feedId,
-    name: feedTitle,
+    name: feedTitle || hostname,
     feedUrl,
-    siteUrl,
+    siteUrl: siteUrl || feedUrl,
     description: feedDescription,
     category: "Indie Web",
     articles,
