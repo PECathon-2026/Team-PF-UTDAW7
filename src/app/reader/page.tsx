@@ -1,31 +1,30 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Feather,
   BookOpen,
-  Compass,
   ArrowLeft,
   Search,
   CheckCircle2,
   Clock,
   Bookmark,
-  Share2,
   ExternalLink,
   Plus,
-  Wifi,
-  WifiOff,
   Sparkles,
-  ChevronRight,
   ShieldCheck,
-  Database,
-  Sliders,
   Type,
   X,
-  RefreshCw,
-  FolderDown
+  ChevronDown,
+  Filter,
+  Trash2,
+  Rss,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface Article {
@@ -58,7 +57,7 @@ const INITIAL_SUBSCRIPTIONS: Subscription[] = [
   { id: "alistapart", name: "A List Apart", category: "Design", unreadCount: 4, initial: "A", color: "bg-[#e0f2fe] text-[#075985] border-[#bae6fd]" },
   { id: "stratechery", name: "Stratechery", category: "Business", unreadCount: 3, initial: "S", color: "bg-[#ffedd5] text-[#9a3412] border-[#fed7aa]" },
   { id: "danluu", name: "Dan Luu", category: "Systems", unreadCount: 2, initial: "D", color: "bg-[#f3e8ff] text-[#6b21a8] border-[#e9d5ff]" },
-  { id: "jvns", name: "Julia Evans", category: "Hacking", unreadCount: 5, initial: "J", color: "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]" }
+  { id: "jvns", name: "Julia Evans", category: "Systems", unreadCount: 5, initial: "J", color: "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]" }
 ];
 
 const INITIAL_ARTICLES: Article[] = [
@@ -89,7 +88,7 @@ const INITIAL_ARTICLES: Article[] = [
     readTime: "6 min read",
     date: "2 hours ago",
     unread: true,
-    saved: false,
+    saved: true,
     image: "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=800&q=80",
     url: "https://themarginalian.org/art-of-craft"
   },
@@ -144,7 +143,7 @@ const INITIAL_ARTICLES: Article[] = [
     id: "4",
     blogId: "jvns",
     blogName: "Julia Evans",
-    category: "Networking & DNS",
+    category: "Systems & Architecture",
     title: "Understanding How Packet Traversal and DNS Caching Actually Work",
     excerpt: "Visualizing the 5 distinct caching layers that resolve domain queries before packets leave your laptop's wireless network interface.",
     content: `
@@ -158,63 +157,71 @@ const INITIAL_ARTICLES: Article[] = [
     readTime: "5 min read",
     date: "2 days ago",
     unread: true,
-    saved: false,
+    saved: true,
     image: "https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=800&q=80",
     url: "https://jvns.ca/dns-layers"
-  }
-];
-
-const ANONYMOUS_RECOMMENDATIONS = [
-  {
-    name: "Simon Willison's Weblog",
-    url: "https://simonwillison.net",
-    domain: "simonwillison.net",
-    topic: "LLMs, SQLite & Python Architecture",
-    description: "Daily notes, technical essays, and open-source tooling explorations without sponsored content.",
-    overlapPercentage: 86,
-    reason: "86% reader co-subscription overlap with Dan Luu & The Marginalian"
-  },
-  {
-    name: "Maggie Appleton",
-    url: "https://maggieappleton.com",
-    domain: "maggieappleton.com",
-    topic: "Digital Gardens & Visual Essays",
-    description: "Anthropological essays on programming, personal knowledge graphs, and human-computer symbiosis.",
-    overlapPercentage: 79,
-    reason: "Followed by 79% of readers of A List Apart"
-  },
-  {
-    name: "Robin Sloan",
-    url: "https://robinsloan.com",
-    domain: "robinsloan.com",
-    topic: "Small Web Fiction & Media Lab",
-    description: "Meditations on home-cooked software, publishing models, and cultivating small, attentive audiences.",
-    overlapPercentage: 74,
-    reason: "74% co-subscription overlap with your literary feeds"
   }
 ];
 
 export default function ReaderDashboard() {
   const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
-  const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved" | "discover">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved">("all");
   const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
-  const [isOnline, setIsOnline] = useState(true);
   const [fontSize, setFontSize] = useState<"normal" | "large" | "xlarge">("normal");
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Change 1: Resizable Sidebar State
+  const [sidebarWidth, setSidebarWidth] = useState(270);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const isResizingRef = useRef(false);
+
+  // Change 3: Saved Posts Dropdown State
+  const [isSavedDropdownOpen, setIsSavedDropdownOpen] = useState(false);
+  const savedDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Change 5: Clean Add Feed Modal State
+  const [isAddFeedModalOpen, setIsAddFeedModalOpen] = useState(false);
+  const [newFeedUrl, setNewFeedUrl] = useState("");
+
+  // Change 6: Subscriptions Category Dropdown State
+  const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
+
+  // Resize Sidebar Event Listeners
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = Math.min(Math.max(e.clientX, 200), 420);
+      setSidebarWidth(newWidth);
     };
+
+    const handleMouseUp = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = "default";
+      document.body.style.userSelect = "auto";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  // Close Saved dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (savedDropdownRef.current && !savedDropdownRef.current.contains(e.target as Node)) {
+        setIsSavedDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const triggerToast = (msg: string) => {
@@ -233,7 +240,7 @@ export default function ReaderDashboard() {
       prev.map(a => {
         if (a.id === id) {
           const nextState = !a.saved;
-          triggerToast(nextState ? "Saved to local collection" : "Removed from saved");
+          triggerToast(nextState ? "Saved to garden" : "Removed from saved");
           return { ...a, saved: nextState };
         }
         return a;
@@ -246,37 +253,36 @@ export default function ReaderDashboard() {
     triggerToast("All articles marked as read");
   };
 
-  const handleAddFeed = () => {
-    const entered = prompt("Enter independent blog URL or RSS feed (e.g. https://overreacted.io):");
-    if (entered) {
-      const cleanName = entered.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
-      const newSub: Subscription = {
-        id: "custom-" + Date.now(),
-        name: cleanName,
-        category: "Indie Web",
-        unreadCount: 1,
-        initial: cleanName.charAt(0).toUpperCase(),
-        color: "bg-[#e2e8f0] text-[#334155] border-[#cbd5e1]"
-      };
-      setSubscriptions(prev => [newSub, ...prev]);
-      triggerToast(`Feed autodiscovered & saved to IndexedDB: ${cleanName}`);
-    }
-  };
+  const handleAddFeedSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newFeedUrl.trim()) return;
 
-  const handleSubscribeRecommendation = (rec: typeof ANONYMOUS_RECOMMENDATIONS[0]) => {
+    const entered = newFeedUrl.trim();
+    const cleanName = entered.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
     const newSub: Subscription = {
-      id: rec.domain,
-      name: rec.name,
-      category: rec.topic,
-      unreadCount: 2,
-      initial: rec.name.charAt(0),
-      color: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]"
+      id: "custom-" + Date.now(),
+      name: cleanName,
+      category: "Indie Web",
+      unreadCount: 1,
+      initial: cleanName.charAt(0).toUpperCase(),
+      color: "bg-[#e2e8f0] text-[#334155] border-[#cbd5e1]"
     };
     setSubscriptions(prev => [newSub, ...prev]);
-    triggerToast(`Subscribed anonymously to ${rec.name}!`);
+    setNewFeedUrl("");
+    setIsAddFeedModalOpen(false);
+    triggerToast(`Feed autodiscovered & subscribed: ${cleanName}`);
   };
 
-  // Filter Logic
+  // Unique categories for dropdown filter
+  const categories = ["all", ...Array.from(new Set(subscriptions.map(s => s.category)))];
+
+  // Filter Subscriptions by Category Dropdown
+  const filteredSubscriptions = subscriptions.filter(sub => {
+    if (categoryFilter === "all") return true;
+    return sub.category.toLowerCase() === categoryFilter.toLowerCase();
+  });
+
+  // Filter Articles
   const filteredArticles = articles.filter(a => {
     if (selectedBlogId && a.blogId !== selectedBlogId) return false;
     if (activeTab === "unread" && !a.unread) return false;
@@ -293,7 +299,8 @@ export default function ReaderDashboard() {
   });
 
   const unreadTotal = articles.filter(a => a.unread).length;
-  const savedTotal = articles.filter(a => a.saved).length;
+  const savedArticles = articles.filter(a => a.saved);
+  const savedTotal = savedArticles.length;
 
   return (
     <div className="min-h-screen bg-[#fbf8f2] text-[#1f1c19] flex flex-col font-sans selection:bg-[#b45309]/15 selection:text-[#92400e]">
@@ -313,17 +320,17 @@ export default function ReaderDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Top Application Header */}
-      <header className="h-16 border-b border-[#e8dfd1] bg-[#fbf8f2]/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
+      {/* TOP HEADER */}
+      <header className="h-16 border-b border-[#e8dfd1] bg-[#fbf8f2]/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
         
-        {/* Brand & Landing Page Link */}
-        <div className="flex items-center gap-6">
+        {/* Brand & Back Button */}
+        <div className="flex items-center gap-5">
           <Link
             href="/"
             className="group flex items-center gap-2 text-xs font-mono text-[#786b59] hover:text-[#b45309] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Tunnel Hero</span>
+            <span className="hidden sm:inline">Landing Page</span>
           </Link>
           
           <div className="h-4 w-px bg-[#e8dfd1] hidden sm:block" />
@@ -336,6 +343,15 @@ export default function ReaderDashboard() {
               <h1 className="font-serif font-bold text-sm tracking-tight text-[#1f1c19]">small web</h1>
               <p className="text-[10px] font-mono uppercase tracking-widest text-[#786b59]">personal library</p>
             </div>
+
+            {/* Sidebar Collapse/Expand Toggle Button in Header */}
+            <button
+              onClick={() => setIsSidebarCollapsed(prev => !prev)}
+              className="ml-2 hidden lg:flex items-center gap-1.5 p-1.5 rounded-lg border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f4ece1] text-[#786b59] hover:text-[#b45309] transition-colors"
+              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen className="w-4 h-4 text-[#b45309]" /> : <PanelLeftClose className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 
@@ -354,40 +370,125 @@ export default function ReaderDashboard() {
           </kbd>
         </div>
 
-        {/* System Telemetry & Offline Status */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#f3ecdf] border border-[#e2d6c3] text-[#786b59]">
-            {isOnline ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-mono">IndexedDB Ready</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5 text-amber-600" />
-                <span className="text-[11px] font-mono text-amber-700">Offline Mode</span>
-              </>
-            )}
+        {/* Top Right Controls (Changes 3, 4, 5) */}
+        <div className="flex items-center gap-3">
+          
+          {/* Change 3: Saved Posts Top Right Column / Dropdown */}
+          <div className="relative" ref={savedDropdownRef}>
+            <button
+              onClick={() => setIsSavedDropdownOpen(prev => !prev)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-serif transition-colors ${
+                isSavedDropdownOpen || activeTab === "saved"
+                  ? "bg-[#fdfaf5] border-[#b45309] text-[#b45309] shadow-xs"
+                  : "bg-[#f4ece1]/80 border-[#e2d6c3] text-[#574e44] hover:bg-[#ebdcc8]"
+              }`}
+            >
+              <Bookmark className="w-3.5 h-3.5 text-[#b45309]" fill={savedTotal > 0 ? "currentColor" : "none"} />
+              <span className="font-medium">Saved ({savedTotal})</span>
+              <ChevronDown className={`w-3 h-3 text-[#8c7e6c] transition-transform ${isSavedDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {/* Saved Posts Dropdown Panel */}
+            <AnimatePresence>
+              {isSavedDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-2 w-80 bg-[#fdfaf5] border border-[#e8dfd1] rounded-2xl shadow-xl p-3 space-y-2 z-40"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-[#e8dfd1] px-1">
+                    <span className="font-serif font-bold text-xs text-[#1f1c19]">Saved Garden</span>
+                    <button
+                      onClick={() => {
+                        setActiveTab("saved");
+                        setIsSavedDropdownOpen(false);
+                      }}
+                      className="text-[11px] font-mono text-[#b45309] hover:underline"
+                    >
+                      View all in timeline →
+                    </button>
+                  </div>
+
+                  {savedArticles.length === 0 ? (
+                    <div className="py-6 text-center text-xs font-serif text-[#8c7e6c]">
+                      No saved essays yet. Click the bookmark icon on any card to save.
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                      {savedArticles.map(a => (
+                        <div
+                          key={a.id}
+                          onClick={() => {
+                            setSelectedArticle(a);
+                            setIsSavedDropdownOpen(false);
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-[#f4ece1] border border-transparent hover:border-[#e2d6c3] cursor-pointer transition-colors group flex items-start justify-between gap-2"
+                        >
+                          <div className="flex-1 truncate">
+                            <h5 className="font-serif text-xs font-bold truncate text-[#1f1c19] group-hover:text-[#b45309]">
+                              {a.title}
+                            </h5>
+                            <p className="font-mono text-[10px] text-[#8c7e6c]">
+                              {a.blogName} • {a.readTime}
+                            </p>
+                          </div>
+                          <button
+                            onClick={e => toggleSave(a.id, e)}
+                            className="text-[#8c7e6c] hover:text-[#b45309] p-1"
+                            title="Remove"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
+          {/* Change 5: Clean and Proper "Add Feed" Button */}
           <button
-            onClick={handleAddFeed}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-serif font-medium shadow-xs transition-colors"
+            onClick={() => setIsAddFeedModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-serif font-medium shadow-xs transition-colors hover:scale-[1.02] active:scale-[0.98]"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add Feed</span>
+            <span>Add Feed</span>
           </button>
         </div>
       </header>
 
-      {/* Main Content Layout: 3 Columns */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* MAIN CONTAINER */}
+      <div className="flex-1 flex overflow-hidden relative">
         
-        {/* 1. LEFT SIDEBAR (Navigation & Subscriptions) */}
-        <aside className="w-64 border-r border-[#e8dfd1] bg-[#f7f2e8]/60 p-5 flex flex-col justify-between hidden lg:flex overflow-y-auto">
-          <div className="space-y-6">
+        {/* RESIZABLE & COLLAPSIBLE LEFT SIDEBAR */}
+        <aside
+          style={{ width: isSidebarCollapsed ? 0 : `${sidebarWidth}px` }}
+          className={`border-r border-[#e8dfd1] bg-[#f7f2e8]/60 flex flex-col justify-between hidden lg:flex relative select-none transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed
+              ? "!w-0 !p-0 !border-r-0 overflow-hidden opacity-0 pointer-events-none"
+              : "p-4 overflow-y-auto opacity-100"
+          }`}
+        >
+          <div className="space-y-5">
             
-            {/* Nav Links */}
+            {/* Nav Header with Collapse Action */}
+            <div className="flex items-center justify-between pb-1 px-1">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#8c7e6c] font-bold">
+                Navigation
+              </span>
+              <button
+                onClick={() => setIsSidebarCollapsed(true)}
+                className="p-1 rounded-md text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors"
+                title="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Primary Nav Links */}
             <div className="space-y-1 text-xs">
               <button
                 onClick={() => { setActiveTab("all"); setSelectedBlogId(null); }}
@@ -434,40 +535,62 @@ export default function ReaderDashboard() {
                 </span>
                 <span className="text-[10px] font-mono text-[#8c7e6c]">{savedTotal}</span>
               </button>
-
-              <button
-                onClick={() => setActiveTab("discover")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "discover"
-                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
-                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Compass className="w-4 h-4 text-[#b45309]" /> Anonymous Discover
-                </span>
-                <span className="text-[9px] font-mono uppercase bg-[#b45309]/10 text-[#b45309] font-bold px-1.5 py-0.5 rounded">
-                  Co-sub
-                </span>
-              </button>
             </div>
 
-            {/* Followed Publications Section */}
-            <div className="space-y-2 pt-4 border-t border-[#e8dfd1]">
+            {/* Change 6: Subscriptions Section with Sleek Dropdown */}
+            <div className="space-y-2.5 pt-4 border-t border-[#e8dfd1]">
+              
+              {/* Header with Category Dropdown Trigger */}
               <div className="flex items-center justify-between px-1">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#8c7e6c] font-bold">
                   Subscriptions
                 </span>
-                <button
-                  onClick={handleAddFeed}
-                  className="text-xs text-[#b45309] hover:underline font-mono font-medium"
-                >
-                  + Add
-                </button>
+                
+                {/* Category Filter Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsSubDropdownOpen(prev => !prev)}
+                    className="flex items-center gap-1 text-[11px] font-mono text-[#786b59] hover:text-[#b45309] px-2 py-0.5 rounded-md hover:bg-[#ebdcc8]/50 transition-colors"
+                  >
+                    <Filter className="w-3 h-3 text-[#b45309]" />
+                    <span className="capitalize">{categoryFilter}</span>
+                    <ChevronDown className="w-2.5 h-2.5" />
+                  </button>
+
+                  <AnimatePresence>
+                    {isSubDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="absolute right-0 mt-1 w-36 bg-[#fdfaf5] border border-[#e2d6c3] rounded-xl shadow-lg p-1.5 z-30 font-mono text-xs space-y-0.5"
+                      >
+                        {categories.map(cat => (
+                          <button
+                            key={cat}
+                            onClick={() => {
+                              setCategoryFilter(cat);
+                              setIsSubDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-2 py-1 rounded-lg capitalize transition-colors flex items-center justify-between ${
+                              categoryFilter === cat
+                                ? "bg-[#b45309] text-white font-bold"
+                                : "text-[#574e44] hover:bg-[#f4ece1]"
+                            }`}
+                          >
+                            <span>{cat}</span>
+                            {categoryFilter === cat && <CheckCircle2 className="w-3 h-3" />}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
+              {/* Filtered Subscriptions List */}
               <div className="space-y-1">
-                {subscriptions.map(sub => (
+                {filteredSubscriptions.map(sub => (
                   <button
                     key={sub.id}
                     onClick={() => {
@@ -494,211 +617,170 @@ export default function ReaderDashboard() {
 
           </div>
 
-          {/* Sidebar Footer Philosophy */}
-          <div className="p-3.5 rounded-2xl bg-[#f2e9db]/70 border border-[#e2d6c3] space-y-2">
+          {/* Philosophy Card */}
+          <div className="p-3.5 rounded-2xl bg-[#f2e9db]/70 border border-[#e2d6c3] space-y-2 mt-4">
             <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#78350f]">
               <ShieldCheck className="w-4 h-4 text-[#b45309]" />
               <span>Zero Surveillance</span>
             </div>
             <p className="text-[11px] font-serif italic text-[#786b59] leading-snug">
-              "No corporate tracking, no user profiles. Your reading habits remain on this device."
+              "No corporate tracking. Your reading sanctuary remains completely offline and private."
             </p>
+          </div>
+
+          {/* Change 1: Draggable Resize Handle */}
+          <div
+            onMouseDown={() => {
+              isResizingRef.current = true;
+              document.body.style.cursor = "col-resize";
+              document.body.style.userSelect = "none";
+            }}
+            className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-[#b45309]/30 transition-colors group z-20 flex items-center justify-center"
+            title="Drag to resize sidebar"
+          >
+            <div className="w-0.5 h-8 bg-[#d6caba] group-hover:bg-[#b45309] rounded-full" />
           </div>
         </aside>
 
-        {/* 2. CENTER FEED (Chronological Timeline or Discover View) */}
+        {/* Floating Expand Button when Sidebar is Collapsed */}
+        {isSidebarCollapsed && (
+          <button
+            onClick={() => setIsSidebarCollapsed(false)}
+            className="hidden lg:flex absolute left-4 top-4 z-30 px-3 py-1.5 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center gap-2 text-xs font-serif group"
+            title="Expand sidebar"
+          >
+            <PanelLeftOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform" />
+            <span className="font-medium">Show Sidebar</span>
+          </button>
+        )}
+
+        {/* 2. CENTER FEED (Chronological Timeline) */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-[#fbf8f2]">
-          
-          {activeTab === "discover" ? (
-            /* DISCOVER TAB: CO-SUBSCRIPTION ENGINE */
-            <div className="p-8 max-w-4xl mx-auto w-full space-y-8">
-              
-              {/* Discover Header */}
-              <div className="bg-gradient-to-br from-[#f4ece1] to-[#fbf8f2] border border-[#e2d6c3] p-6 rounded-3xl space-y-3 shadow-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-[#b45309] text-white flex items-center justify-center text-xs">
-                    <Compass className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-xs font-mono text-[#b45309] uppercase tracking-widest font-bold">
-                    Anonymous Co-Subscription Graph
-                  </span>
-                </div>
-                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#1f1c19]">
-                  Discover Independent Writers Without Algorithms
+          <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
+            
+            {/* Header Title & Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
+              <div>
+                <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
+                  {selectedBlogId
+                    ? subscriptions.find(s => s.id === selectedBlogId)?.name
+                    : activeTab === "unread"
+                    ? "Unread Collection"
+                    : activeTab === "saved"
+                    ? "Saved Garden"
+                    : "Personal Timeline."}
                 </h2>
-                <p className="font-serif text-sm text-[#574e44] max-w-2xl leading-relaxed">
-                  Recommendations are calculated mathematically from reader basket overlap across independent blogs. When many readers of blog A also read blog B, B is suggested to you. No tracking cookies or accounts are used.
+                <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
+                  Latest writings from your curated library. Sorted purely by chronologic delivery.
                 </p>
               </div>
 
-              {/* Recommendations Grid */}
-              <div className="space-y-4">
-                <h3 className="text-xs font-mono uppercase tracking-widest text-[#8c7e6c] font-bold">
-                  Suggested For Your Taste
-                </h3>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono text-[#8c7e6c]">
+                  {filteredArticles.length} essays
+                </span>
+                <button
+                  onClick={markAllRead}
+                  className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
+                >
+                  Mark all read
+                </button>
+              </div>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {ANONYMOUS_RECOMMENDATIONS.map((rec, i) => (
-                    <div
-                      key={i}
-                      className="p-5 rounded-2xl bg-[#fdfaf5] border border-[#e8dfd1] hover:border-[#b45309]/50 transition-all space-y-3.5 shadow-xs"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-serif font-bold text-base text-[#1f1c19]">{rec.name}</h4>
-                          <span className="text-xs font-mono text-[#786b59]">{rec.domain}</span>
-                        </div>
-                        <button
-                          onClick={() => handleSubscribeRecommendation(rec)}
-                          className="px-3 py-1.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif text-xs font-medium shadow-xs transition-colors"
-                        >
-                          + Follow
-                        </button>
+            {/* Articles Feed */}
+            {filteredArticles.length === 0 ? (
+              <div className="py-20 text-center space-y-3">
+                <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
+                <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
+                <p className="font-serif text-xs text-[#8c7e6c]">
+                  {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredArticles.map(article => (
+                  <motion.article
+                    key={article.id}
+                    onClick={() => {
+                      setSelectedArticle(article);
+                      markAsRead(article.id);
+                    }}
+                    className="group p-5 rounded-2xl border border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start"
+                  >
+                    <div className="flex-1 space-y-2.5">
+                      
+                      {/* Metadata Tag */}
+                      <div className="flex items-center gap-2 text-xs">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            article.unread ? "bg-[#b45309]" : "bg-transparent"
+                          }`}
+                        />
+                        <span className="font-serif font-bold text-[#1f1c19] text-xs">
+                          {article.blogName}
+                        </span>
+                        <span className="text-[#d6caba]">•</span>
+                        <span className="font-mono text-[11px] text-[#8c7e6c]">
+                          {article.category}
+                        </span>
                       </div>
 
-                      <p className="font-serif text-xs text-[#574e44] leading-relaxed">
-                        {rec.description}
+                      {/* Article Headline */}
+                      <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1f1c19] group-hover:text-[#b45309] transition-colors leading-snug">
+                        {article.title}
+                      </h3>
+
+                      {/* Excerpt */}
+                      <p className="font-serif text-xs sm:text-sm text-[#574e44] line-clamp-2 leading-relaxed">
+                        {article.excerpt}
                       </p>
 
-                      <div className="p-2.5 rounded-xl bg-[#f7f2e8] border border-[#e2d6c3] flex items-center gap-2 text-[11px] font-mono text-[#78350f]">
-                        <Sparkles className="w-3.5 h-3.5 text-[#b45309] flex-shrink-0" />
-                        <span className="leading-tight">{rec.reason}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      {/* Bottom Actions */}
+                      <div className="flex items-center justify-between text-xs text-[#8c7e6c] font-mono pt-1">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-[#b45309]" />
+                          {article.readTime} • {article.date}
+                        </span>
 
-            </div>
-          ) : (
-            /* TIMELINE VIEW */
-            <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
-              
-              {/* Header Title & Actions */}
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
-                <div>
-                  <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
-                    {selectedBlogId
-                      ? subscriptions.find(s => s.id === selectedBlogId)?.name
-                      : activeTab === "unread"
-                      ? "Unread Collection"
-                      : activeTab === "saved"
-                      ? "Saved Garden"
-                      : "Personal Timeline."}
-                  </h2>
-                  <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
-                    Latest writings from your curated library. Sorted purely by chronologic delivery.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono text-[#8c7e6c]">
-                    {filteredArticles.length} essays
-                  </span>
-                  <button
-                    onClick={markAllRead}
-                    className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
-                  >
-                    Mark all read
-                  </button>
-                </div>
-              </div>
-
-              {/* Articles Feed */}
-              {filteredArticles.length === 0 ? (
-                <div className="py-20 text-center space-y-3">
-                  <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
-                  <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
-                  <p className="font-serif text-xs text-[#8c7e6c]">
-                    {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later or discover new writers."}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredArticles.map(article => (
-                    <motion.article
-                      key={article.id}
-                      onClick={() => {
-                        setSelectedArticle(article);
-                        markAsRead(article.id);
-                      }}
-                      className="group p-5 rounded-2xl border border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start"
-                    >
-                      <div className="flex-1 space-y-2.5">
-                        
-                        {/* Metadata Tag */}
-                        <div className="flex items-center gap-2 text-xs">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              article.unread ? "bg-[#b45309]" : "bg-transparent"
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={e => toggleSave(article.id, e)}
+                            className={`p-1.5 rounded-lg hover:bg-[#f3ecdf] transition-colors ${
+                              article.saved ? "text-[#b45309]" : "text-[#8c7e6c]"
                             }`}
-                          />
-                          <span className="font-serif font-bold text-[#1f1c19] text-xs">
-                            {article.blogName}
-                          </span>
-                          <span className="text-[#d6caba]">•</span>
-                          <span className="font-mono text-[11px] text-[#8c7e6c]">
-                            {article.category}
-                          </span>
+                          >
+                            <Bookmark className="w-3.5 h-3.5" fill={article.saved ? "currentColor" : "none"} />
+                          </button>
+                          <button
+                            onClick={e => markAsRead(article.id, e)}
+                            className="p-1.5 rounded-lg hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19] transition-colors"
+                            title="Mark read"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-
-                        {/* Article Headline */}
-                        <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1f1c19] group-hover:text-[#b45309] transition-colors leading-snug">
-                          {article.title}
-                        </h3>
-
-                        {/* Excerpt */}
-                        <p className="font-serif text-xs sm:text-sm text-[#574e44] line-clamp-2 leading-relaxed">
-                          {article.excerpt}
-                        </p>
-
-                        {/* Bottom Actions */}
-                        <div className="flex items-center justify-between text-xs text-[#8c7e6c] font-mono pt-1">
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="w-3 h-3 text-[#b45309]" />
-                            {article.readTime} • {article.date}
-                          </span>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={e => toggleSave(article.id, e)}
-                              className={`p-1.5 rounded-lg hover:bg-[#f3ecdf] transition-colors ${
-                                article.saved ? "text-[#b45309]" : "text-[#8c7e6c]"
-                              }`}
-                            >
-                              <Bookmark className="w-3.5 h-3.5" fill={article.saved ? "currentColor" : "none"} />
-                            </button>
-                            <button
-                              onClick={e => markAsRead(article.id, e)}
-                              className="p-1.5 rounded-lg hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19] transition-colors"
-                              title="Mark read"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
                       </div>
 
-                      {/* Editorial Thumbnail */}
-                      <div className="w-full sm:w-40 h-28 rounded-xl overflow-hidden border border-[#e8dfd1] flex-shrink-0 bg-[#f4ece1] shadow-xs">
-                        <img
-                          src={article.image}
-                          alt={article.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      </div>
-                    </motion.article>
-                  ))}
-                </div>
-              )}
+                    </div>
 
-            </div>
-          )}
+                    {/* Editorial Thumbnail */}
+                    <div className="w-full sm:w-40 h-28 rounded-xl overflow-hidden border border-[#e8dfd1] flex-shrink-0 bg-[#f4ece1] shadow-xs">
+                      <img
+                        src={article.image}
+                        alt={article.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
+            )}
 
+          </div>
         </main>
 
-        {/* 3. RIGHT SIDEBAR (Telemetry & Reading Stats) */}
+        {/* 3. RIGHT SIDEBAR (Telemetry & Reading Focus) */}
         <aside className="w-80 border-l border-[#e8dfd1] bg-[#f7f2e8]/40 p-6 flex flex-col justify-between hidden xl:flex overflow-y-auto space-y-6">
           
           {/* Weekly Reading Chart */}
@@ -771,34 +853,116 @@ export default function ReaderDashboard() {
             </div>
           </div>
 
-          {/* Anonymous Discovery Banner */}
-          <div
-            onClick={() => setActiveTab("discover")}
-            className="p-5 rounded-2xl bg-[#92400e] text-white space-y-3 cursor-pointer hover:bg-[#78350f] transition-all shadow-md relative overflow-hidden group"
-          >
-            <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-[#fde68a]">
-              <span>Discover</span>
-              <Compass className="w-4 h-4 text-[#fde68a] group-hover:rotate-45 transition-transform" />
-            </div>
-
-            <div>
-              <h4 className="font-serif text-base font-bold text-white leading-snug">
-                Find New Independent Voices
-              </h4>
-              <p className="font-serif text-xs text-[#fef3c7]/80 mt-1 leading-relaxed">
-                Co-subscription recommendations without surveillance.
-              </p>
-            </div>
-
-            <div className="pt-1 flex items-center text-xs font-serif font-medium text-[#fde68a] underline gap-1">
-              <span>View recommendations</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </div>
+          {/* Quote Card */}
+          <div className="p-4 rounded-2xl bg-[#fdfaf5] border border-[#e8dfd1] space-y-2 shadow-xs">
+            <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
+            <p className="font-serif text-xs italic text-[#574e44] leading-relaxed">
+              "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
+            </p>
           </div>
 
         </aside>
 
       </div>
+
+      {/* Change 5: SLEEK & CLEAN "ADD FEED" MODAL */}
+      <AnimatePresence>
+        {isAddFeedModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="w-full max-w-lg bg-[#fdfaf5] border border-[#e8dfd1] rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5"
+            >
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-[#b45309] text-white flex items-center justify-center text-xs">
+                      <Rss className="w-4 h-4" />
+                    </div>
+                    <h3 className="font-serif text-xl font-bold text-[#1f1c19]">
+                      Subscribe to an Indie Blog
+                    </h3>
+                  </div>
+                  <p className="font-serif text-xs text-[#786b59]">
+                    Paste any website, RSS URL, or Substack link. Autodiscovery will locate the feed.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAddFeedModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-[#f4ece1] hover:bg-[#ebdcc8] text-[#574e44] flex items-center justify-center text-xs font-bold transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Form Input */}
+              <form onSubmit={handleAddFeedSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-[#574e44] font-medium">
+                    Blog or Feed URL
+                  </label>
+                  <input
+                    type="text"
+                    value={newFeedUrl}
+                    onChange={e => setNewFeedUrl(e.target.value)}
+                    placeholder="e.g. https://overreacted.io or danluu.com"
+                    autoFocus
+                    className="w-full bg-[#f4ece1]/80 border border-[#e2d6c3] rounded-xl px-4 py-2.5 text-xs font-mono text-[#1f1c19] placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all"
+                  />
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-mono text-[#8c7e6c]">
+                    Or pick a popular independent writer:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { name: "Overreacted", url: "https://overreacted.io" },
+                      { name: "Simon Willison", url: "https://simonwillison.net" },
+                      { name: "Robin Sloan", url: "https://robinsloan.com" },
+                      { name: "Paul Graham", url: "http://paulgraham.com/rss.html" }
+                    ].map(preset => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => setNewFeedUrl(preset.url)}
+                        className="px-2.5 py-1 rounded-lg bg-[#f4ece1] hover:bg-[#ebdcc8] text-[11px] font-serif text-[#574e44] border border-[#e2d6c3] transition-colors"
+                      >
+                        + {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Modal Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#e8dfd1]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddFeedModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-serif font-medium text-[#786b59] hover:bg-[#f4ece1] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-serif font-medium shadow-xs transition-colors"
+                  >
+                    Subscribe Now
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* SLIDE-OVER ARTICLE READER DRAWER */}
       <AnimatePresence>
