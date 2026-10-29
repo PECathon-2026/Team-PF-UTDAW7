@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import ConstellationGraph from "@/components/graph/ConstellationGraph";
 import ListenModePlayer from "@/components/reader/ListenModePlayer";
+import AiDigestCard from "@/components/reader/AiDigestCard";
+import { generateOnDeviceDigest, ArticleDigest } from "@/lib/summarizer";
 
 interface Article {
   id: string;
@@ -188,6 +190,10 @@ export default function ReaderDashboard() {
   const [isListenModeActive, setIsListenModeActive] = useState(false);
   const [activeSpeechParagraph, setActiveSpeechParagraph] = useState(0);
   const [isSpeechPlaying, setIsSpeechPlaying] = useState(false);
+
+  // On-Device AI Digest State
+  const [isAiDigestOpen, setIsAiDigestOpen] = useState(false);
+  const [cachedDigest, setCachedDigest] = useState<ArticleDigest | null>(null);
 
   // Change 1: Resizable Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
@@ -373,7 +379,21 @@ export default function ReaderDashboard() {
     setIsSpeechPlaying(false);
     setIsListenModeActive(false);
     setActiveSpeechParagraph(0);
+    setIsAiDigestOpen(false);
+    setCachedDigest(null);
     setSelectedArticle(null);
+  };
+
+  const handleToggleAiDigest = () => {
+    if (!isAiDigestOpen) {
+      if (!cachedDigest && selectedArticle) {
+        const digest = generateOnDeviceDigest(selectedArticle.content);
+        setCachedDigest(digest);
+      }
+      setIsAiDigestOpen(true);
+    } else {
+      setIsAiDigestOpen(false);
+    }
   };
 
   // Unique categories for dropdown filter
@@ -1170,6 +1190,20 @@ export default function ReaderDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* AI Digest Button (On-Device Private NLP) */}
+                  <button
+                    onClick={handleToggleAiDigest}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-serif transition-colors ${
+                      isAiDigestOpen
+                        ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
+                        : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
+                    }`}
+                    title="30-Second AI Executive Digest (100% On-Device NLP)"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isAiDigestOpen ? "text-amber-200" : "text-[#b45309]"}`} />
+                    <span>{isAiDigestOpen ? "Digest" : "AI Digest"}</span>
+                  </button>
+
                   {/* Listen Mode Toggle Button */}
                   <button
                     onClick={() => {
@@ -1256,6 +1290,17 @@ export default function ReaderDashboard() {
                     By <strong className="text-[#1f1c19]">{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
                   </p>
                 </div>
+
+                {/* On-Device AI Executive Digest Card */}
+                <AnimatePresence>
+                  {isAiDigestOpen && cachedDigest && (
+                    <AiDigestCard
+                      digest={cachedDigest}
+                      articleTitle={selectedArticle.title}
+                      onClose={() => setIsAiDigestOpen(false)}
+                    />
+                  )}
+                </AnimatePresence>
 
                 <hr className="border-[#e8dfd1]" />
 
