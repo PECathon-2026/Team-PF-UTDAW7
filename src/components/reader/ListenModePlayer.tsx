@@ -6,10 +6,9 @@ import {
   Pause,
   RotateCcw,
   Volume2,
-  VolumeX,
   Headphones,
-  FastForward,
-  Check
+  ChevronDown,
+  X
 } from "lucide-react";
 
 interface ListenModePlayerProps {
@@ -32,11 +31,15 @@ export default function ListenModePlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1.0);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string>("");
+
   const isPlayingRef = useRef(false);
   const currentIdxRef = useRef(activeParagraphIndex);
+  const speedRef = useRef(speed);
+  const voiceNameRef = useRef(selectedVoiceName);
+  const voicesListRef = useRef<SpeechSynthesisVoice[]>([]);
 
-  // Sync refs
+  // Keep refs synchronized
   useEffect(() => {
     isPlayingRef.current = isPlaying;
     if (onPlayingChange) onPlayingChange(isPlaying);
@@ -46,6 +49,14 @@ export default function ListenModePlayer({
     currentIdxRef.current = activeParagraphIndex;
   }, [activeParagraphIndex]);
 
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
+
+  useEffect(() => {
+    voiceNameRef.current = selectedVoiceName;
+  }, [selectedVoiceName]);
+
   // Load available browser voices
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -54,13 +65,21 @@ export default function ListenModePlayer({
       const avail = window.speechSynthesis.getVoices();
       if (avail.length > 0) {
         setVoices(avail);
-        // Prefer natural English voices (e.g. Samantha, Daniel, Google, or first English)
-        const bestVoice =
-          avail.find(v => v.name.includes("Samantha") || v.name.includes("Daniel")) ||
-          avail.find(v => v.lang.startsWith("en") && v.localService) ||
-          avail.find(v => v.lang.startsWith("en")) ||
-          avail[0];
-        setSelectedVoice(bestVoice || null);
+        voicesListRef.current = avail;
+
+        // Default to a good natural English voice if not selected
+        if (!voiceNameRef.current) {
+          const naturalVoice =
+            avail.find(v => v.name.includes("Samantha") || v.name.includes("Daniel")) ||
+            avail.find(v => v.lang.startsWith("en") && v.localService) ||
+            avail.find(v => v.lang.startsWith("en")) ||
+            avail[0];
+
+          if (naturalVoice) {
+            setSelectedVoiceName(naturalVoice.name);
+            voiceNameRef.current = naturalVoice.name;
+          }
+        }
       }
     };
 
@@ -74,7 +93,7 @@ export default function ListenModePlayer({
     };
   }, []);
 
-  // Stop speech on unmount
+  // Stop speech when player unmounts
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -83,8 +102,17 @@ export default function ListenModePlayer({
     };
   }, []);
 
+  // Helper to get active voice object
+  const getSelectedVoice = (vName = selectedVoiceName) => {
+    return voicesListRef.current.find(v => v.name === vName) || null;
+  };
+
   // Speak specific paragraph
-  const speakParagraph = (index: number, currentSpeed = speed) => {
+  const speakParagraph = (
+    index: number,
+    currentSpeed = speedRef.current,
+    vName = voiceNameRef.current
+  ) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
 
@@ -96,10 +124,11 @@ export default function ListenModePlayer({
 
     const text = paragraphs[index];
     if (!text || text.trim().length === 0) {
-      // Skip empty paragraph
-      if (index + 1 < paragraphs.length) {
-        onParagraphChange(index + 1);
-        speakParagraph(index + 1, currentSpeed);
+      // Auto-advance if empty
+      const nextIdx = index + 1;
+      if (nextIdx < paragraphs.length) {
+        onParagraphChange(nextIdx);
+        speakParagraph(nextIdx, currentSpeed, vName);
       } else {
         setIsPlaying(false);
       }
@@ -109,8 +138,10 @@ export default function ListenModePlayer({
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = currentSpeed;
     utterance.pitch = 1.0;
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
+
+    const voice = getSelectedVoice(vName);
+    if (voice) {
+      utterance.voice = voice;
     }
 
     utterance.onend = () => {
@@ -118,7 +149,7 @@ export default function ListenModePlayer({
       const nextIdx = index + 1;
       if (nextIdx < paragraphs.length) {
         onParagraphChange(nextIdx);
-        speakParagraph(nextIdx, currentSpeed);
+        speakParagraph(nextIdx, currentSpeed, vName);
       } else {
         setIsPlaying(false);
         onParagraphChange(0);
@@ -134,6 +165,18 @@ export default function ListenModePlayer({
     window.speechSynthesis.speak(utterance);
   };
 
+  // Watch external activeParagraphIndex changes (e.g. clicking paragraph or dragging scrubber)
+  const lastActiveIndex = useRef(activeParagraphIndex);
+  useEffect(() => {
+    if (lastActiveIndex.current !== activeParagraphIndex) {
+      lastActiveIndex.current = activeParagraphIndex;
+      // If currently playing, immediately speak from this newly selected paragraph!
+      if (isPlayingRef.current) {
+        speakParagraph(activeParagraphIndex, speed, selectedVoiceName);
+      }
+    }
+  }, [activeParagraphIndex, speed, selectedVoiceName]);
+
   // Play / Pause toggle
   const togglePlay = () => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -143,7 +186,7 @@ export default function ListenModePlayer({
       setIsPlaying(false);
     } else {
       setIsPlaying(true);
-      speakParagraph(activeParagraphIndex, speed);
+      speakParagraph(activeParagraphIndex, speed, selectedVoiceName);
     }
   };
 
@@ -151,7 +194,7 @@ export default function ListenModePlayer({
   const handleRestart = () => {
     onParagraphChange(0);
     if (isPlaying) {
-      speakParagraph(0, speed);
+      speakParagraph(0, speed, selectedVoiceName);
     }
   };
 
@@ -163,25 +206,50 @@ export default function ListenModePlayer({
     setSpeed(nextSpeed);
 
     if (isPlaying) {
-      speakParagraph(activeParagraphIndex, nextSpeed);
+      speakParagraph(activeParagraphIndex, nextSpeed, selectedVoiceName);
+    }
+  };
+
+  // Handle Voice Change
+  const handleVoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newVoiceName = e.target.value;
+    setSelectedVoiceName(newVoiceName);
+    voiceNameRef.current = newVoiceName;
+
+    if (isPlaying) {
+      speakParagraph(activeParagraphIndex, speed, newVoiceName);
+    }
+  };
+
+  // Handle Draggable Scrubber Change
+  const handleScrubberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newIndex = parseInt(e.target.value, 10);
+    onParagraphChange(newIndex);
+    // If playing, immediately switch playback to this scrubbed point
+    if (isPlaying) {
+      speakParagraph(newIndex, speed, selectedVoiceName);
     }
   };
 
   const progressPercent =
-    paragraphs.length > 0
-      ? Math.round(((activeParagraphIndex + 1) / paragraphs.length) * 100)
-      : 0;
+    paragraphs.length > 1
+      ? Math.round((activeParagraphIndex / (paragraphs.length - 1)) * 100)
+      : 100;
+
+  // Filter natural English voices first, fallback to all
+  const englishVoices = voices.filter(v => v.lang.startsWith("en"));
+  const availableVoices = englishVoices.length > 0 ? englishVoices : voices;
 
   return (
     <div className="bg-[#fdfaf5] border-b border-[#e8dfd1] px-6 py-3 select-none flex flex-wrap items-center justify-between gap-4 font-serif text-[#1f1c19] shadow-2xs">
       
-      {/* Left: Playback Controls & Equalizer */}
-      <div className="flex items-center gap-3">
-        {/* Play / Pause Primary Button */}
+      {/* 1. Left Controls: Play/Pause, Restart, Equalizer */}
+      <div className="flex items-center gap-2.5">
+        {/* Play/Pause Button */}
         <button
           onClick={togglePlay}
           className="w-9 h-9 rounded-full bg-[#b45309] hover:bg-[#92400e] text-white flex items-center justify-center shadow-xs transition-transform active:scale-95"
-          title={isPlaying ? "Pause audio (Space)" : "Listen to essay"}
+          title={isPlaying ? "Pause audio" : "Listen to essay"}
         >
           {isPlaying ? (
             <Pause className="w-4 h-4 fill-current text-white" />
@@ -190,7 +258,7 @@ export default function ListenModePlayer({
           )}
         </button>
 
-        {/* Restart / Rewind */}
+        {/* Restart / Rewind to Start */}
         <button
           onClick={handleRestart}
           className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white hover:bg-[#f4ece1] text-[#574e44] transition-colors"
@@ -199,10 +267,10 @@ export default function ListenModePlayer({
           <RotateCcw className="w-3.5 h-3.5" />
         </button>
 
-        {/* Animated Equalizer Sound Waves */}
-        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#f4ece1] border border-[#e2d6c3]">
+        {/* Animated Equalizer Waves Badge */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#f4ece1] border border-[#e2d6c3]">
           <Headphones className="w-3.5 h-3.5 text-[#b45309]" />
-          <div className="flex items-end gap-0.5 h-3.5 w-4 mx-1">
+          <div className="flex items-end gap-0.5 h-3.5 w-4 mx-0.5">
             <span
               className={`w-1 bg-[#b45309] rounded-full transition-all duration-300 ${
                 isPlaying ? "h-3 animate-pulse" : "h-1"
@@ -225,32 +293,66 @@ export default function ListenModePlayer({
         </div>
       </div>
 
-      {/* Center: Reading Progress Scrubber */}
-      <div className="flex-1 max-w-xs hidden md:flex items-center gap-3">
-        <span className="text-[10px] font-mono text-[#8c7e6c] flex-shrink-0">
-          Section {activeParagraphIndex + 1}/{paragraphs.length}
+      {/* 2. Center: Draggable / Interactive Progress Scrubber */}
+      <div className="flex-1 max-w-sm flex items-center gap-2.5 min-w-[180px]">
+        <span className="text-[10px] font-mono text-[#8c7e6c] flex-shrink-0 w-12 text-right">
+          {activeParagraphIndex + 1}/{paragraphs.length}
         </span>
-        <div className="flex-1 h-1.5 bg-[#ebdcc8] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#b45309] transition-all duration-300"
-            style={{ width: `${progressPercent}%` }}
+
+        {/* Interactive Slider Input */}
+        <div className="flex-1 relative flex items-center group py-2">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, paragraphs.length - 1)}
+            step={1}
+            value={activeParagraphIndex}
+            onChange={handleScrubberChange}
+            className="w-full h-1.5 bg-[#ebdcc8] rounded-full appearance-none cursor-pointer accent-[#b45309] focus:outline-none transition-all group-hover:h-2"
+            style={{
+              background: `linear-gradient(to right, #b45309 ${progressPercent}%, #ebdcc8 ${progressPercent}%)`
+            }}
+            title={`Drag to scrub section (currently section ${activeParagraphIndex + 1})`}
           />
         </div>
-        <span className="text-[10px] font-mono text-[#8c7e6c] flex-shrink-0">
+
+        <span className="text-[10px] font-mono text-[#8c7e6c] flex-shrink-0 w-8">
           {progressPercent}%
         </span>
       </div>
 
-      {/* Right: Speed Toggle & Controls */}
+      {/* 3. Right: Voice Selector & Speed */}
       <div className="flex items-center gap-2">
+        {/* Voice Selector Dropdown */}
+        {availableVoices.length > 0 && (
+          <div className="relative flex items-center">
+            <Volume2 className="w-3.5 h-3.5 absolute left-2 text-[#b45309] pointer-events-none" />
+            <select
+              value={selectedVoiceName}
+              onChange={handleVoiceChange}
+              className="text-[11px] font-mono bg-white border border-[#e2d6c3] rounded-lg pl-6 pr-6 py-1 text-[#574e44] hover:border-[#b45309] focus:outline-none focus:ring-1 focus:ring-[#b45309] cursor-pointer max-w-[135px] truncate appearance-none"
+              title="Select Narrator Voice"
+            >
+              {availableVoices.map(v => (
+                <option key={v.name} value={v.name}>
+                  {v.name.replace(/^(Google|Microsoft|Apple|Natural)\s+/i, "").split(" ")[0]} ({v.lang.split("-")[0].toUpperCase()})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3 h-3 absolute right-1.5 text-[#8c7e6c] pointer-events-none" />
+          </div>
+        )}
+
+        {/* Speed Toggle (1.0x, 1.25x, 1.5x, 2.0x) */}
         <button
           onClick={cycleSpeed}
-          className="px-2.5 py-1 rounded-lg border border-[#e2d6c3] bg-white hover:bg-[#f4ece1] text-xs font-mono font-bold text-[#574e44] transition-colors"
+          className="px-2.5 py-1 rounded-lg border border-[#e2d6c3] bg-white hover:bg-[#f4ece1] hover:border-[#b45309] text-xs font-mono font-bold text-[#574e44] transition-colors"
           title="Change playback speed"
         >
           {speed.toFixed(2).replace(/\.00$/, "")}x
         </button>
 
+        {/* Close Button */}
         {onClose && (
           <button
             onClick={() => {
@@ -260,9 +362,10 @@ export default function ListenModePlayer({
               setIsPlaying(false);
               onClose();
             }}
-            className="text-[11px] font-mono text-[#8c7e6c] hover:text-[#b45309] px-2 py-1 rounded-md transition-colors"
+            className="p-1 rounded-md text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#f4ece1] transition-colors"
+            title="Hide listen bar"
           >
-            Hide
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
