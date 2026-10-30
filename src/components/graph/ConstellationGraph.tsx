@@ -265,22 +265,32 @@ export default function ConstellationGraph({
     const allNodes = [...subNodes, ...extraDiscovery];
 
     const edges: GraphEdge[] = [];
+    const edgeCounts: Record<string, number> = {};
+
     for (let i = 0; i < allNodes.length; i++) {
       for (let j = i + 1; j < allNodes.length; j++) {
         const a = allNodes[i];
         const b = allNodes[j];
+        const countA = edgeCounts[a.id] || 0;
+        const countB = edgeCounts[b.id] || 0;
+        if (countA >= 2 || countB >= 2) continue;
+
         if (a.category.toLowerCase() === b.category.toLowerCase()) {
           edges.push({
             source: a.id,
             target: b.id,
             overlap: 75 + ((i + j) % 20)
           });
-        } else if ((i + j) % 3 === 0) {
+          edgeCounts[a.id] = countA + 1;
+          edgeCounts[b.id] = countB + 1;
+        } else if ((i + j) % 4 === 0 && countA < 1 && countB < 1) {
           edges.push({
             source: a.id,
             target: b.id,
             overlap: 55 + ((i * j) % 30)
           });
+          edgeCounts[a.id] = countA + 1;
+          edgeCounts[b.id] = countB + 1;
         }
       }
     }
@@ -341,7 +351,7 @@ export default function ConstellationGraph({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Initialize node layout with center distribution
+  // Initialize node layout with spacious multi-ring orbit distribution
   const initPositions = useCallback((width: number, height: number) => {
     const cx = width / 2;
     const cy = height / 2;
@@ -349,8 +359,11 @@ export default function ConstellationGraph({
     const baseNodes = dynamicNodes.length > 0 ? dynamicNodes : DEFAULT_NODES;
 
     const initialized = baseNodes.map((node, i) => {
-      const angle = (i / baseNodes.length) * 2 * Math.PI;
-      const ringRadius = 150 + (i % 3) * 65;
+      // Golden spiral angle distribution to maximally separate neighbors
+      const angle = (i * 2.399963) + 0.3;
+      const ring = (i % 3);
+      // Spacious radii: 175px, 280px, 385px
+      const ringRadius = 175 + ring * 105;
       return {
         ...node,
         x: cx + Math.cos(angle) * ringRadius,
@@ -414,31 +427,54 @@ export default function ConstellationGraph({
       const currentNodes = nodesRef.current;
       const currentEdges = edgesRef.current;
 
-      // 1. Repulsion force between nodes
+      // 1. Repulsion force between nodes & Hard Non-Overlap Collision
       for (let i = 0; i < currentNodes.length; i++) {
         for (let j = i + 1; j < currentNodes.length; j++) {
           const n1 = currentNodes[i];
           const n2 = currentNodes[j];
           const dx = (n2.x || 0) - (n1.x || 0);
           const dy = (n2.y || 0) - (n1.y || 0);
-          const distSq = dx * dx + dy * dy || 1;
+          const distSq = dx * dx + dy * dy || 0.1;
           const dist = Math.sqrt(distSq);
 
-          if (dist < 240) {
-            const force = ((240 - dist) / dist) * 0.35;
+          // Hard physical collision separation (min 110px prevents any label or circle overlap)
+          const minSeparation = 110;
+          if (dist < minSeparation) {
+            const overlap = (minSeparation - dist) * 0.5;
+            const nx = dist > 0.001 ? dx / dist : Math.cos(i);
+            const ny = dist > 0.001 ? dy / dist : Math.sin(i);
             if (isDraggingNode.current !== n1) {
-              n1.vx = (n1.vx || 0) - (dx / dist) * force;
-              n1.vy = (n1.vy || 0) - (dy / dist) * force;
+              n1.x = (n1.x || 0) - nx * overlap;
+              n1.y = (n1.y || 0) - ny * overlap;
+              n1.vx = (n1.vx || 0) - nx * 0.9;
+              n1.vy = (n1.vy || 0) - ny * 0.9;
             }
             if (isDraggingNode.current !== n2) {
-              n2.vx = (n2.vx || 0) + (dx / dist) * force;
-              n2.vy = (n2.vy || 0) + (dy / dist) * force;
+              n2.x = (n2.x || 0) + nx * overlap;
+              n2.y = (n2.y || 0) + ny * overlap;
+              n2.vx = (n2.vx || 0) + nx * 0.9;
+              n2.vy = (n2.vy || 0) + ny * 0.9;
+            }
+          }
+
+          // Long-range electrostatic repulsion up to 380px
+          if (dist < 380) {
+            const force = Math.min(2.8, ((380 - dist) / Math.max(dist, 40)) * 0.9);
+            const nx = dist > 0.001 ? dx / dist : 1;
+            const ny = dist > 0.001 ? dy / dist : 0;
+            if (isDraggingNode.current !== n1) {
+              n1.vx = (n1.vx || 0) - nx * force;
+              n1.vy = (n1.vy || 0) - ny * force;
+            }
+            if (isDraggingNode.current !== n2) {
+              n2.vx = (n2.vx || 0) + nx * force;
+              n2.vy = (n2.vy || 0) + ny * force;
             }
           }
         }
       }
 
-      // 2. Spring attraction along similarity edges
+      // 2. Spring attraction along similarity edges (spacious target distance)
       currentEdges.forEach(edge => {
         const n1 = currentNodes.find(n => n.id === edge.source);
         const n2 = currentNodes.find(n => n.id === edge.target);
@@ -447,8 +483,8 @@ export default function ConstellationGraph({
         const dx = n2.x - n1.x;
         const dy = n2.y - n1.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const targetDist = 175 - (edge.overlap / 100) * 45;
-        const force = (dist - targetDist) * 0.02;
+        const targetDist = 240 - (edge.overlap / 100) * 40; // 200px - 240px
+        const force = (dist - targetDist) * 0.006; // gentle spring so it doesn't crush repulsion
 
         if (isDraggingNode.current !== n1) {
           n1.vx = (n1.vx || 0) + (dx / dist) * force;
@@ -461,7 +497,7 @@ export default function ConstellationGraph({
       });
 
       // 3. Central gravity & soft boundary clamping (nodes never fly away)
-      const maxConstellationRadius = Math.min(width, height) * 0.44;
+      const maxConstellationRadius = Math.min(width, height) * 0.46;
 
       currentNodes.forEach(node => {
         if (isDraggingNode.current === node) return;
@@ -470,13 +506,13 @@ export default function ConstellationGraph({
         const toCenterY = centerY - (node.y || centerY);
         const distCenter = Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY);
 
-        // Gentle central gravity pull
-        node.vx = (node.vx || 0) * 0.86 + toCenterX * 0.0018;
-        node.vy = (node.vy || 0) * 0.86 + toCenterY * 0.0018;
+        // Very gentle central gravity pull so nodes stay well-expanded
+        node.vx = (node.vx || 0) * 0.82 + toCenterX * 0.00035;
+        node.vy = (node.vy || 0) * 0.82 + toCenterY * 0.00035;
 
         // Hard boundary retention
         if (distCenter > maxConstellationRadius) {
-          const pullBack = (distCenter - maxConstellationRadius) * 0.025;
+          const pullBack = (distCenter - maxConstellationRadius) * 0.03;
           node.vx += (toCenterX / (distCenter || 1)) * pullBack;
           node.vy += (toCenterY / (distCenter || 1)) * pullBack;
         }

@@ -272,7 +272,7 @@ export default function ReaderDashboard() {
   const { isDark } = useTheme();
   const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
-  const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved" | "discover">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "read" | "saved" | "discover">("all");
   const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -449,13 +449,23 @@ export default function ReaderDashboard() {
     if (!target) return;
     const nextUnread = !target.unread;
     setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: nextUnread } : a)));
+    setReadingProgress(prev => {
+      const updated = { ...prev, [id]: nextUnread ? 0 : 100 };
+      try { localStorage.setItem("sw_reading_progress", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
     await updateArticleState(id, { unread: nextUnread });
-    triggerToast(nextUnread ? "Marked as unread" : "Marked as read");
+    triggerToast(nextUnread ? "Marked as unread" : "Marked as read (100% read)");
   };
 
   const markAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: false } : a)));
+    setReadingProgress(prev => {
+      const updated = { ...prev, [id]: 100 };
+      try { localStorage.setItem("sw_reading_progress", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
     await updateArticleState(id, { unread: false });
   };
 
@@ -498,12 +508,20 @@ export default function ReaderDashboard() {
 
   const markAllRead = async () => {
     setArticles(prev => prev.map(a => ({ ...a, unread: false })));
+    setReadingProgress(prev => {
+      const updated = { ...prev };
+      articles.forEach(a => {
+        updated[a.id] = 100;
+      });
+      try { localStorage.setItem("sw_reading_progress", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
     for (const a of articles) {
       if (a.unread) {
         await updateArticleState(a.id, { unread: false });
       }
     }
-    triggerToast("All articles marked as read");
+    triggerToast("All essays marked as 100% read");
   };
 
   // Manual Background Refresh Trigger
@@ -838,6 +856,7 @@ export default function ReaderDashboard() {
   const filteredArticles = articles.filter(a => {
     if (selectedBlogId && a.blogId !== selectedBlogId) return false;
     if (activeTab === "unread" && !a.unread) return false;
+    if (activeTab === "read" && a.unread) return false;
     if (activeTab === "saved" && !a.saved) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -1127,6 +1146,24 @@ export default function ReaderDashboard() {
               </button>
 
               <button
+                onClick={() => { setViewMode("timeline"); setActiveTab("read"); setSelectedBlogId(null); }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                  viewMode === "timeline" && activeTab === "read"
+                    ? isDark ? "bg-[#25211c] text-emerald-400 shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-emerald-700 shadow-xs border border-[#e2d6c3]"
+                    : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <CheckCircle2 className={`w-4 h-4 ${viewMode === "timeline" && activeTab === "read" ? "text-emerald-500" : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`} /> Read
+                </span>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  isDark ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/40" : "bg-[#d1fae5] text-[#065f46]"
+                }`}>
+                  {articles.length - unreadTotal}
+                </span>
+              </button>
+
+              <button
                 onClick={() => { setViewMode("graph"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
                   viewMode === "graph"
@@ -1258,12 +1295,20 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Zero Surveillance Philosophy Card */}
-          <div className="p-3.5 rounded-2xl bg-[#f2e9db]/70 border border-[#e2d6c3] space-y-2 mt-4">
-            <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#78350f]">
-              <ShieldCheck className="w-4 h-4 text-[#b45309]" />
+          <div className={`p-3.5 rounded-2xl border space-y-2 mt-4 transition-colors ${
+            isDark
+              ? "bg-[#1f1c19] border-[#38332c] text-[#f5efe6]"
+              : "bg-[#f2e9db]/70 border-[#e2d6c3] text-[#78350f]"
+          }`}>
+            <div className={`flex items-center gap-2 text-xs font-serif font-bold ${
+              isDark ? "text-amber-400" : "text-[#78350f]"
+            }`}>
+              <ShieldCheck className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-[#b45309]"}`} />
               <span>Zero Surveillance</span>
             </div>
-            <p className="text-[11px] font-serif italic text-[#786b59] leading-snug">
+            <p className={`text-[11px] font-serif italic leading-snug ${
+              isDark ? "text-[#a89d8f]" : "text-[#786b59]"
+            }`}>
               "No corporate tracking. Your reading sanctuary remains completely offline and private."
             </p>
           </div>
@@ -1325,6 +1370,8 @@ export default function ReaderDashboard() {
                         ? subscriptions.find(s => s.id === selectedBlogId)?.name
                         : activeTab === "unread"
                         ? "Unread Collection"
+                        : activeTab === "read"
+                        ? "Read Archive."
                         : activeTab === "saved"
                         ? "Saved Garden"
                         : "Personal Timeline."}
@@ -1334,6 +1381,8 @@ export default function ReaderDashboard() {
                     }`}>
                       {viewMode === "graph"
                         ? "Co-subscription proximity graph of your curated library."
+                        : activeTab === "read"
+                        ? "All previously read essays and publications from your personal library."
                         : "Latest writings from your curated library. Sorted purely by chronologic delivery."}
                     </p>
                   </div>
@@ -1454,7 +1503,12 @@ export default function ReaderDashboard() {
                               </span>
 
                               {/* Reading Progress Percentage Indicator */}
-                              {readingProgress[article.id] !== undefined && readingProgress[article.id] > 0 ? (
+                              {!article.unread ? (
+                                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full flex items-center gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  <span>100% read</span>
+                                </span>
+                              ) : readingProgress[article.id] !== undefined && readingProgress[article.id] > 0 ? (
                                 <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${
                                   readingProgress[article.id] >= 90
                                     ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
@@ -1464,10 +1518,6 @@ export default function ReaderDashboard() {
                                     readingProgress[article.id] >= 90 ? "bg-emerald-500" : "bg-amber-500"
                                   }`} />
                                   <span>{readingProgress[article.id]}% read</span>
-                                </span>
-                              ) : !article.unread ? (
-                                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-medium px-1.5 py-0.5 rounded bg-emerald-500/10">
-                                  Read
                                 </span>
                               ) : null}
                             </div>
