@@ -13,7 +13,9 @@ import {
   RotateCcw,
   ExternalLink,
   BookOpen,
-  X
+  X,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 
 export interface GraphNode {
@@ -21,7 +23,7 @@ export interface GraphNode {
   name: string;
   initial: string;
   domain: string;
-  category: "Culture" | "Systems" | "Design" | "Business" | "Indie";
+  category: string;
   isSubscribed: boolean;
   readersCount: number;
   description: string;
@@ -177,26 +179,43 @@ const DEFAULT_EDGES: GraphEdge[] = [
   { source: "simonw", target: "brandur", overlap: 71 }
 ];
 
-const CATEGORY_TABS = [
-  { key: "all", label: "All Topics" },
-  { key: "Systems", label: "Systems" },
-  { key: "Culture", label: "Culture" },
-  { key: "Design", label: "Design" },
-  { key: "Business", label: "Business" }
-];
+export interface ConstellationFeedInput {
+  id: string;
+  name: string;
+  category?: string;
+  siteUrl?: string;
+  feedUrl?: string;
+  initial?: string;
+}
+
+export interface ConstellationArticleInput {
+  id: string;
+  blogId?: string;
+  blogName?: string;
+  title: string;
+  category?: string;
+  excerpt?: string;
+  url?: string;
+}
 
 interface ConstellationGraphProps {
   onSubscribeFeed?: (name: string, domain: string) => void;
   onOpenArticle?: (title: string, author: string) => void;
   onClose?: () => void;
+  onToggleFullscreen?: () => void;
   isFullScreenModal?: boolean;
+  subscriptions?: ConstellationFeedInput[];
+  articles?: ConstellationArticleInput[];
 }
 
 export default function ConstellationGraph({
   onSubscribeFeed,
   onOpenArticle,
   onClose,
-  isFullScreenModal = false
+  onToggleFullscreen,
+  isFullScreenModal = false,
+  subscriptions,
+  articles
 }: ConstellationGraphProps) {
   const { isDark } = useTheme();
   const isDarkRef = useRef(isDark);
@@ -205,16 +224,89 @@ export default function ConstellationGraph({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [nodes, setNodes] = useState<GraphNode[]>(DEFAULT_NODES);
+  // Compute dynamic nodes & edges based on real backend subscriptions & articles
+  const { dynamicNodes, dynamicEdges } = React.useMemo(() => {
+    if (!subscriptions || subscriptions.length === 0) {
+      return { dynamicNodes: DEFAULT_NODES, dynamicEdges: DEFAULT_EDGES };
+    }
+
+    const subNodes: GraphNode[] = subscriptions.map((sub, i) => {
+      const matchedArticle = articles?.find(
+        (a) =>
+          (a.blogId && a.blogId.toLowerCase() === sub.id.toLowerCase()) ||
+          (a.blogName && a.blogName.toLowerCase() === sub.name.toLowerCase())
+      );
+
+      const cleanDomain = sub.siteUrl
+        ? sub.siteUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "")
+        : sub.feedUrl
+        ? sub.feedUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "")
+        : `${sub.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
+
+      return {
+        id: sub.id,
+        name: sub.name,
+        initial: sub.initial || (sub.name.charAt(0) || "B").toUpperCase(),
+        domain: cleanDomain,
+        category: sub.category || "Indie",
+        isSubscribed: true,
+        readersCount: 2200 + ((i * 850) % 4100),
+        description: matchedArticle?.excerpt || `Active publication in your personal Small Web feed.`,
+        recentTitle: matchedArticle?.title || `Recent essays from ${sub.name}`
+      };
+    });
+
+    const existingNames = new Set(subNodes.map((n) => n.name.toLowerCase()));
+    const extraDiscovery = DEFAULT_NODES.filter((d) => !existingNames.has(d.name.toLowerCase())).slice(0, 4).map((d) => ({
+      ...d,
+      isSubscribed: false
+    }));
+
+    const allNodes = [...subNodes, ...extraDiscovery];
+
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < allNodes.length; i++) {
+      for (let j = i + 1; j < allNodes.length; j++) {
+        const a = allNodes[i];
+        const b = allNodes[j];
+        if (a.category.toLowerCase() === b.category.toLowerCase()) {
+          edges.push({
+            source: a.id,
+            target: b.id,
+            overlap: 75 + ((i + j) % 20)
+          });
+        } else if ((i + j) % 3 === 0) {
+          edges.push({
+            source: a.id,
+            target: b.id,
+            overlap: 55 + ((i * j) % 30)
+          });
+        }
+      }
+    }
+
+    return { dynamicNodes: allNodes, dynamicEdges: edges };
+  }, [subscriptions, articles]);
+
+  const [nodes, setNodes] = useState<GraphNode[]>(dynamicNodes);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
 
+  // Dynamic category filters based on current nodes
+  const categoryTabs = React.useMemo(() => {
+    const categories = Array.from(new Set(nodes.map(n => n.category))).filter(Boolean);
+    return [
+      { key: "all", label: "All Topics" },
+      ...categories.map(c => ({ key: c, label: c }))
+    ];
+  }, [nodes]);
+
   // Simulation refs
   const nodesRef = useRef<GraphNode[]>([]);
-  const edgesRef = useRef<GraphEdge[]>(DEFAULT_EDGES);
+  const edgesRef = useRef<GraphEdge[]>(dynamicEdges);
   const specksRef = useRef<AmbientSpeck[]>([]);
   const animationFrameId = useRef<number | null>(null);
   const isDraggingNode = useRef<GraphNode | null>(null);
@@ -254,8 +346,10 @@ export default function ConstellationGraph({
     const cx = width / 2;
     const cy = height / 2;
 
-    const initialized = DEFAULT_NODES.map((node, i) => {
-      const angle = (i / DEFAULT_NODES.length) * 2 * Math.PI;
+    const baseNodes = dynamicNodes.length > 0 ? dynamicNodes : DEFAULT_NODES;
+
+    const initialized = baseNodes.map((node, i) => {
+      const angle = (i / baseNodes.length) * 2 * Math.PI;
       const ringRadius = 150 + (i % 3) * 65;
       return {
         ...node,
@@ -270,7 +364,8 @@ export default function ConstellationGraph({
 
     nodesRef.current = initialized;
     setNodes(initialized);
-  }, []);
+    edgesRef.current = dynamicEdges.length > 0 ? dynamicEdges : DEFAULT_EDGES;
+  }, [dynamicNodes, dynamicEdges]);
 
   // Handle Resize and Canvas Resolution (High-DPI retina safe)
   useEffect(() => {
@@ -793,44 +888,56 @@ export default function ConstellationGraph({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full overflow-hidden select-none flex flex-col font-serif bg-[#fbf8f2] ${
+      className={`relative w-full overflow-hidden select-none flex flex-col font-serif transition-colors duration-300 ${
+        isDark ? "bg-[#12100e] text-[#f5efe6]" : "bg-[#fbf8f2] text-[#1f1c19]"
+      } ${
         isFullScreenModal
           ? "w-full h-full"
-          : "h-[80vh] rounded-3xl border border-[#e8dfd1] shadow-xl"
+          : "h-full min-h-[580px] rounded-3xl border border-[#e8dfd1] dark:border-[#2d2924] shadow-xl"
       }`}
     >
       {/* Top Floating Editorial Header Controls */}
       <div className="absolute top-4 left-4 right-4 z-30 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
         
-        {/* Left: Brand Crest in Warm Parchment */}
-        <div className="pointer-events-auto flex items-center gap-3 px-4 py-2 rounded-2xl bg-[#fdfaf5]/95 backdrop-blur-md border border-[#e2d6c3] shadow-xs">
+        {/* Left: Brand Crest */}
+        <div className={`pointer-events-auto flex items-center gap-3 px-4 py-2 rounded-2xl backdrop-blur-md border shadow-xs transition-colors ${
+          isDark
+            ? "bg-[#1a1714]/95 border-[#332c25] text-[#f5efe6]"
+            : "bg-[#fdfaf5]/95 border-[#e2d6c3] text-[#1f1c19]"
+        }`}>
           <div className="w-7 h-7 rounded-lg bg-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-xs">
             <Orbit className="w-4 h-4 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-serif font-bold text-xs text-[#1f1c19] tracking-tight">
+              <span className={`font-serif font-bold text-xs tracking-tight ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>
                 Constellation Graph
               </span>
-              <span className="text-[10px] font-mono text-[#b45309] uppercase tracking-wider font-bold">
+              <span className="text-[10px] font-mono text-[#b45309] dark:text-amber-400 uppercase tracking-wider font-bold">
                 Discovery
               </span>
             </div>
-            <p className="text-[10px] font-mono text-[#786b59]">
+            <p className={`text-[10px] font-mono ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>
               Co-subscription Proximity Network
             </p>
           </div>
         </div>
 
-        {/* Center: Category Filters in Warm Paper Segmented Control */}
-        <div className="pointer-events-auto hidden md:flex items-center gap-1 p-1 rounded-2xl bg-[#fdfaf5]/95 backdrop-blur-md border border-[#e2d6c3] shadow-xs text-xs font-serif">
-          {CATEGORY_TABS.map(tab => (
+        {/* Center: Category Filters */}
+        <div className={`pointer-events-auto hidden md:flex items-center gap-1 p-1 rounded-2xl backdrop-blur-md border shadow-xs text-xs font-serif transition-colors ${
+          isDark
+            ? "bg-[#1a1714]/95 border-[#332c25]"
+            : "bg-[#fdfaf5]/95 border-[#e2d6c3]"
+        }`}>
+          {categoryTabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setSelectedCategory(tab.key)}
               className={`px-3 py-1.5 rounded-xl transition-all ${
                 selectedCategory === tab.key
                   ? "bg-[#b45309] text-white font-bold shadow-xs"
+                  : isDark
+                  ? "text-[#a89d8f] hover:text-[#f5efe6] hover:bg-[#25211c]"
                   : "text-[#574e44] hover:text-[#1f1c19] hover:bg-[#f4ece1]"
               }`}
             >
@@ -841,36 +948,61 @@ export default function ConstellationGraph({
 
         {/* Right: Controls & Exit Button */}
         <div className="pointer-events-auto flex items-center gap-2">
-          {/* Zoom In / Out / Reset */}
-          <div className="flex items-center gap-1 p-1 rounded-2xl bg-[#fdfaf5]/95 backdrop-blur-md border border-[#e2d6c3] shadow-xs text-[#574e44]">
+          {/* Zoom In / Out / Reset / Fullscreen */}
+          <div className={`flex items-center gap-1 p-1 rounded-2xl backdrop-blur-md border shadow-xs transition-colors ${
+            isDark
+              ? "bg-[#1a1714]/95 border-[#332c25] text-[#d6caba]"
+              : "bg-[#fdfaf5]/95 border-[#e2d6c3] text-[#574e44]"
+          }`}>
             <button
               onClick={() => setZoomLevel(z => Math.min(z * 1.15, 2.2))}
-              className="p-1.5 rounded-lg hover:bg-[#f4ece1] hover:text-[#b45309] transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${
+                isDark ? "hover:bg-[#25211c] hover:text-amber-400" : "hover:bg-[#f4ece1] hover:text-[#b45309]"
+              }`}
               title="Zoom In"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
             <button
               onClick={() => setZoomLevel(z => Math.max(z * 0.85, 0.55))}
-              className="p-1.5 rounded-lg hover:bg-[#f4ece1] hover:text-[#b45309] transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${
+                isDark ? "hover:bg-[#25211c] hover:text-amber-400" : "hover:bg-[#f4ece1] hover:text-[#b45309]"
+              }`}
               title="Zoom Out"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
             <button
               onClick={resetView}
-              className="p-1.5 rounded-lg hover:bg-[#f4ece1] hover:text-[#b45309] transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${
+                isDark ? "hover:bg-[#25211c] hover:text-amber-400" : "hover:bg-[#f4ece1] hover:text-[#b45309]"
+              }`}
               title="Reset Perspective"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
+            {onToggleFullscreen && (
+              <button
+                onClick={onToggleFullscreen}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isDark ? "hover:bg-[#25211c] hover:text-amber-400" : "hover:bg-[#f4ece1] hover:text-[#b45309]"
+                }`}
+                title={isFullScreenModal ? "Exit Fullscreen" : "Fullscreen View"}
+              >
+                {isFullScreenModal ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            )}
           </div>
 
           {/* Close / Exit Button */}
           {onClose && (
             <button
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-[#fdfaf5]/95 hover:bg-[#b45309] hover:text-white border border-[#e2d6c3] text-[#574e44] text-xs font-serif transition-all shadow-xs group"
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border text-xs font-serif transition-all shadow-xs group ${
+                isDark
+                  ? "bg-[#1a1714]/95 border-[#332c25] text-[#d6caba] hover:bg-[#b45309] hover:text-white"
+                  : "bg-[#fdfaf5]/95 border-[#e2d6c3] text-[#574e44] hover:bg-[#b45309] hover:text-white"
+              }`}
               title="Close Constellation (Esc)"
             >
               <X className="w-4 h-4 group-hover:rotate-90 transition-transform" />
@@ -891,16 +1023,20 @@ export default function ConstellationGraph({
       />
 
       {/* Bottom Subtle Editorial Legend */}
-      <div className="absolute bottom-4 left-4 z-20 pointer-events-none hidden sm:flex items-center gap-5 px-4 py-2 rounded-full bg-[#fdfaf5]/95 backdrop-blur-md border border-[#e2d6c3] shadow-xs text-[11px] font-mono text-[#786b59]">
+      <div className={`absolute bottom-4 left-4 z-20 pointer-events-none hidden sm:flex items-center gap-5 px-4 py-2 rounded-full backdrop-blur-md border shadow-xs text-[11px] font-mono transition-colors ${
+        isDark
+          ? "bg-[#1a1714]/95 border-[#332c25] text-[#a89d8f]"
+          : "bg-[#fdfaf5]/95 border-[#e2d6c3] text-[#786b59]"
+      }`}>
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-[#b45309]" />
-          <span className="text-[#1f1c19]">Subscribed Feed</span>
+          <span className={isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}>Subscribed Feed</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full border border-[#d6caba] bg-white" />
-          <span className="text-[#1f1c19]">Recommendation Overlap</span>
+          <span className={isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}>Recommendation Overlap</span>
         </div>
-        <div className="flex items-center gap-1.5 text-[#b45309]">
+        <div className="flex items-center gap-1.5 text-[#b45309] dark:text-amber-400">
           <Sparkles className="w-3.5 h-3.5" />
           <span>Drag nodes to reshape gravity</span>
         </div>
@@ -913,27 +1049,37 @@ export default function ConstellationGraph({
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.95 }}
-            className="absolute bottom-5 right-5 z-40 w-88 max-w-[calc(100vw-2.5rem)] bg-[#fdfaf5] border border-[#e2d6c3] rounded-3xl shadow-2xl p-6 space-y-4 backdrop-blur-md text-[#1f1c19] font-serif"
+            className={`absolute bottom-5 right-5 z-40 w-88 max-w-[calc(100vw-2.5rem)] rounded-3xl shadow-2xl p-6 space-y-4 backdrop-blur-md font-serif border transition-colors ${
+              isDark
+                ? "bg-[#181614]/95 border-[#38332c] text-[#f5efe6]"
+                : "bg-[#fdfaf5]/95 border-[#e2d6c3] text-[#1f1c19]"
+            }`}
           >
             {/* Popover Header */}
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#b45309] font-bold">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#b45309] dark:text-amber-400 font-bold">
                     {selectedNode.category}
                   </span>
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
-                    Recommended
+                  <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full ${
+                    isDark
+                      ? "bg-amber-950/60 text-amber-300 border border-amber-800/60"
+                      : "bg-[#fef3c7] text-[#92400e] border border-[#fde68a]"
+                  }`}>
+                    {selectedNode.isSubscribed ? "Subscribed Feed" : "Recommendation"}
                   </span>
                 </div>
-                <h4 className="text-lg font-serif font-bold text-[#1f1c19] mt-1 leading-snug">
+                <h4 className={`text-lg font-serif font-bold mt-1 leading-snug ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>
                   {selectedNode.name}
                 </h4>
                 <a
                   href={`https://${selectedNode.domain}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs font-mono text-[#786b59] hover:text-[#b45309] hover:underline flex items-center gap-1 mt-0.5 transition-colors"
+                  className={`text-xs font-mono hover:underline flex items-center gap-1 mt-0.5 transition-colors ${
+                    isDark ? "text-[#a89d8f] hover:text-amber-400" : "text-[#786b59] hover:text-[#b45309]"
+                  }`}
                 >
                   <span>{selectedNode.domain}</span>
                   <ExternalLink className="w-3 h-3" />
@@ -942,20 +1088,26 @@ export default function ConstellationGraph({
 
               <button
                 onClick={() => setSelectedNode(null)}
-                className="p-1 rounded-full text-[#8c7e6c] hover:text-[#1f1c19] hover:bg-[#f4ece1] transition-colors"
+                className={`p-1 rounded-full transition-colors ${
+                  isDark ? "text-[#8c8172] hover:text-[#f5efe6] hover:bg-[#25211c]" : "text-[#8c7e6c] hover:text-[#1f1c19] hover:bg-[#f4ece1]"
+                }`}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Description */}
-            <p className="text-xs text-[#574e44] leading-relaxed">
+            <p className={`text-xs leading-relaxed ${isDark ? "text-[#a89d8f]" : "text-[#574e44]"}`}>
               {selectedNode.description}
             </p>
 
             {/* Shared Affinity Badge */}
-            <div className="p-3 rounded-2xl bg-[#f4ece1] border border-[#e2d6c3] text-xs font-mono text-[#78350f] flex items-center gap-2.5 shadow-2xs">
-              <Sparkles className="w-4 h-4 text-[#b45309] flex-shrink-0" />
+            <div className={`p-3 rounded-2xl border text-xs font-mono flex items-center gap-2.5 shadow-2xs ${
+              isDark
+                ? "bg-[#25211c] border-[#38332c] text-amber-300"
+                : "bg-[#f4ece1] border-[#e2d6c3] text-[#78350f]"
+            }`}>
+              <Sparkles className="w-4 h-4 text-[#b45309] dark:text-amber-400 flex-shrink-0" />
               <span>~{selectedNode.readersCount.toLocaleString()} shared readers in graph</span>
             </div>
 
@@ -965,13 +1117,15 @@ export default function ConstellationGraph({
                 onClick={() => toggleSubscribe(selectedNode.id)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-serif font-medium transition-all shadow-xs ${
                   selectedNode.isSubscribed
-                    ? "bg-[#f4ece1] text-[#92400e] border border-[#e2d6c3] hover:bg-[#ebdcc8]"
+                    ? isDark
+                      ? "bg-[#25211c] text-amber-300 border border-[#38332c] hover:bg-[#2e2923]"
+                      : "bg-[#f4ece1] text-[#92400e] border border-[#e2d6c3] hover:bg-[#ebdcc8]"
                     : "bg-[#b45309] hover:bg-[#92400e] text-white font-medium"
                 }`}
               >
                 {selectedNode.isSubscribed ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#b45309]" /> Subscribed
+                    <Check className="w-3.5 h-3.5 text-[#b45309] dark:text-amber-400" /> Subscribed
                   </>
                 ) : (
                   <>
@@ -983,10 +1137,14 @@ export default function ConstellationGraph({
               {onOpenArticle && (
                 <button
                   onClick={() => onOpenArticle(selectedNode.recentTitle, selectedNode.name)}
-                  className="p-2.5 rounded-xl border border-[#e2d6c3] bg-white hover:bg-[#f4ece1] text-[#574e44] transition-colors shadow-xs"
+                  className={`p-2.5 rounded-xl border transition-colors shadow-xs ${
+                    isDark
+                      ? "border-[#38332c] bg-[#221f1c] hover:bg-[#2d2823] text-[#d6caba]"
+                      : "border-[#e2d6c3] bg-white hover:bg-[#f4ece1] text-[#574e44]"
+                  }`}
                   title="Read latest essay in reading view"
                 >
-                  <BookOpen className="w-4 h-4 text-[#b45309]" />
+                  <BookOpen className="w-4 h-4 text-[#b45309] dark:text-amber-400" />
                 </button>
               )}
             </div>

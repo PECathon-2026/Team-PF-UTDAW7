@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import {
   Sparkles,
   ShieldCheck,
-  Network,
   Rss,
   Check,
   Plus,
@@ -37,22 +36,6 @@ interface Recommendation {
   coSubCount?: number;
 }
 
-interface GraphData {
-  nodes: {
-    id: string;
-    title: string;
-    category: string;
-    popularity: number;
-    url: string;
-    siteUrl: string;
-  }[];
-  edges: {
-    source: string;
-    target: string;
-    weight: number;
-  }[];
-}
-
 interface DiscoveryViewProps {
   subscribedUrls: string[];
   onSubscribe: (url: string, title?: string) => Promise<void>;
@@ -64,19 +47,15 @@ export default function DiscoveryView({
   onSubscribe,
   onToast,
 }: DiscoveryViewProps) {
-  const [viewMode, setViewMode] = useState<"recommendations" | "graph">("recommendations");
   const [optIn, setOptIn] = useState<boolean>(false);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-  const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [subscribingUrl, setSubscribingUrl] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   // Load opt-in state and fetch recommendations on mount or when subscriptions change
   useEffect(() => {
     setOptIn(getOptInDiscovery());
     fetchRecommendations();
-    fetchGraph();
   }, [subscribedUrls.join(",")]);
 
   const fetchRecommendations = async () => {
@@ -95,18 +74,6 @@ export default function DiscoveryView({
       console.warn("Failed to load recommendations:", err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchGraph = async () => {
-    try {
-      const res = await fetch("/api/discover/graph");
-      if (res.ok) {
-        const data = await res.json();
-        setGraphData(data.graph || null);
-      }
-    } catch (err) {
-      console.warn("Failed to load graph:", err);
     }
   };
 
@@ -157,31 +124,6 @@ export default function DiscoveryView({
             Recommendations calculated purely from reader subscription overlap. No tracking cookies, no engagement algorithms, and zero persistent user identifiers.
           </p>
         </div>
-
-        {/* View Switcher Pill */}
-        <div className="flex items-center gap-1 p-1 bg-[#f4ece1] rounded-xl border border-[#e2d6c3] self-start sm:self-auto">
-          <button
-            onClick={() => setViewMode("recommendations")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-serif font-medium transition-all ${
-              viewMode === "recommendations"
-                ? "bg-[#fdfaf5] text-[#b45309] shadow-xs font-bold"
-                : "text-[#786b59] hover:text-[#1f1c19]"
-            }`}
-          >
-            Curated Shelf
-          </button>
-          <button
-            onClick={() => setViewMode("graph")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-serif font-medium transition-all flex items-center gap-1.5 ${
-              viewMode === "graph"
-                ? "bg-[#fdfaf5] text-[#b45309] shadow-xs font-bold"
-                : "text-[#786b59] hover:text-[#1f1c19]"
-            }`}
-          >
-            <Network className="w-3.5 h-3.5" />
-            <span>Visual Graph</span>
-          </button>
-        </div>
       </div>
 
       {/* 2. Privacy & Opt-in Boundary Card */}
@@ -223,9 +165,8 @@ export default function DiscoveryView({
         </div>
       </div>
 
-      {/* 3. Main Discovery Content */}
-      {viewMode === "recommendations" ? (
-        <div className="space-y-6">
+      {/* 3. Main Discovery Content: Curated Shelf */}
+      <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="font-serif font-bold text-base text-[#1f1c19] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#b45309]" />
@@ -329,180 +270,6 @@ export default function DiscoveryView({
             </div>
           )}
         </div>
-      ) : (
-        /* 4. Interactive Co-Subscription Visual Graph (Bonus Quest) */
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-serif font-bold text-base text-[#1f1c19] flex items-center gap-2">
-                <Network className="w-4 h-4 text-[#b45309]" />
-                <span>"Blogs Like This" Co-Subscription Network</span>
-              </h3>
-              <p className="font-serif text-xs text-[#786b59]">
-                Interactive map of independent blogs connected by reader co-subscription overlap.
-              </p>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-6 rounded-2xl border border-[#e8dfd1] bg-[#fffdfa] shadow-sm relative overflow-hidden">
-            {graphData ? (
-              <svg
-                viewBox="0 0 800 480"
-                className="w-full h-auto max-h-[500px] select-none"
-              >
-                <defs>
-                  <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#b45309" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#b45309" stopOpacity="0" />
-                  </radialGradient>
-                </defs>
-
-                {/* Co-subscription Edges */}
-                <g className="edges opacity-40">
-                  {graphData.edges.map((edge, idx) => {
-                    const sourceNodeIdx = graphData.nodes.findIndex((n) => n.id === edge.source);
-                    const targetNodeIdx = graphData.nodes.findIndex((n) => n.id === edge.target);
-                    if (sourceNodeIdx === -1 || targetNodeIdx === -1) return null;
-
-                    // Compute node coordinates around circular orbits
-                    const nTotal = graphData.nodes.length;
-                    const angleA = (sourceNodeIdx / nTotal) * 2 * Math.PI;
-                    const angleB = (targetNodeIdx / nTotal) * 2 * Math.PI;
-
-                    const radius = 170;
-                    const x1 = 400 + Math.cos(angleA) * radius;
-                    const y1 = 240 + Math.sin(angleA) * (radius * 0.75);
-                    const x2 = 400 + Math.cos(angleB) * radius;
-                    const y2 = 240 + Math.sin(angleB) * (radius * 0.75);
-
-                    const isHighlighted =
-                      selectedNode === edge.source || selectedNode === edge.target;
-
-                    return (
-                      <line
-                        key={idx}
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        stroke={isHighlighted ? "#b45309" : "#c4b5a0"}
-                        strokeWidth={isHighlighted ? 2.5 : Math.min(Math.max(edge.weight / 25, 1), 3)}
-                        strokeOpacity={isHighlighted ? 0.9 : 0.4}
-                      />
-                    );
-                  })}
-                </g>
-
-                {/* Nodes */}
-                <g className="nodes">
-                  {graphData.nodes.map((node, idx) => {
-                    const nTotal = graphData.nodes.length;
-                    const angle = (idx / nTotal) * 2 * Math.PI;
-                    const radius = 170;
-                    const cx = 400 + Math.cos(angle) * radius;
-                    const cy = 240 + Math.sin(angle) * (radius * 0.75);
-
-                    const isSelected = selectedNode === node.id;
-                    const subscribed = isSubscribed(node.url);
-
-                    return (
-                      <g
-                        key={node.id}
-                        onClick={() => setSelectedNode(isSelected ? null : node.id)}
-                        className="cursor-pointer group"
-                      >
-                        {isSelected && (
-                          <circle cx={cx} cy={cy} r={28} fill="url(#nodeGlow)" />
-                        )}
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={isSelected ? 16 : 12}
-                          fill={subscribed ? "#b45309" : "#fdfaf5"}
-                          stroke={subscribed ? "#78350f" : "#8c7e6c"}
-                          strokeWidth={isSelected ? 3 : 1.5}
-                          className="transition-all duration-300 group-hover:scale-125"
-                        />
-                        <text
-                          x={cx}
-                          y={cy + 22}
-                          textAnchor="middle"
-                          className={`text-[10px] font-serif font-bold transition-colors ${
-                            isSelected
-                              ? "fill-[#b45309] font-bold"
-                              : "fill-[#4a4237] group-hover:fill-[#1f1c19]"
-                          }`}
-                        >
-                          {node.title.split(" ")[0]}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </g>
-              </svg>
-            ) : (
-              <div className="py-20 text-center text-xs font-serif text-[#8c7e6c]">
-                Loading graph structure...
-              </div>
-            )}
-
-            {/* Selected Node Card Overlay */}
-            {selectedNode && (
-              <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 p-4 rounded-xl bg-[#fdfaf5] border border-[#b45309]/50 shadow-xl space-y-2 animate-in fade-in slide-in-from-bottom-2">
-                {(() => {
-                  const node = graphData?.nodes.find((n) => n.id === selectedNode);
-                  if (!node) return null;
-                  const subscribed = isSubscribed(node.url);
-
-                  return (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4ece1] text-[#92400e]">
-                          {node.category}
-                        </span>
-                        <button
-                          onClick={() => setSelectedNode(null)}
-                          className="text-xs font-mono text-[#8c7e6c] hover:text-[#1f1c19]"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <h4 className="font-serif font-bold text-base text-[#1f1c19]">
-                        {node.title}
-                      </h4>
-                      <p className="text-xs font-serif text-[#6b5f50]">
-                        Independent blog in the Small Web discovery index.
-                      </p>
-                      <div className="pt-2 flex items-center justify-between">
-                        <a
-                          href={node.siteUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-mono text-[#b45309] flex items-center gap-1 hover:underline"
-                        >
-                          <span>Visit site</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                        <button
-                          onClick={() => handleSubscribeClick(node.url, node.title)}
-                          disabled={subscribed}
-                          className={`px-3 py-1 rounded-lg text-xs font-serif font-medium ${
-                            subscribed
-                              ? "bg-[#e8dfd1] text-[#786b59]"
-                              : "bg-[#b45309] hover:bg-[#92400e] text-white"
-                          }`}
-                        >
-                          {subscribed ? "Subscribed ✓" : "+ Subscribe"}
-                        </button>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
   );
 }

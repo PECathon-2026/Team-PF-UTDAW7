@@ -302,6 +302,18 @@ export default function ReaderDashboard() {
   // Reader Full Screen Toggle State
   const [isReaderFullscreen, setIsReaderFullscreen] = useState(false);
 
+  // Reading Completion Percentage Tracker
+  const [readingProgress, setReadingProgress] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sw_reading_progress");
+      if (saved) {
+        setReadingProgress(JSON.parse(saved));
+      }
+    } catch {}
+  }, []);
+
   // Resizable Left Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -431,10 +443,41 @@ export default function ReaderDashboard() {
   };
 
   // Persistent User Actions
+  const toggleReadStatus = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const target = articles.find(a => a.id === id);
+    if (!target) return;
+    const nextUnread = !target.unread;
+    setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: nextUnread } : a)));
+    await updateArticleState(id, { unread: nextUnread });
+    triggerToast(nextUnread ? "Marked as unread" : "Marked as read");
+  };
+
   const markAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: false } : a)));
     await updateArticleState(id, { unread: false });
+  };
+
+  // Reading Scroll Progress Listener
+  const handleDrawerScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!selectedArticle) return;
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight <= clientHeight) return;
+    const pct = Math.min(100, Math.max(0, Math.round(((scrollTop + clientHeight) / scrollHeight) * 100)));
+    setReadingProgress(prev => {
+      const current = prev[selectedArticle.id] || 0;
+      if (pct > current) {
+        const updated = { ...prev, [selectedArticle.id]: pct };
+        try { localStorage.setItem("sw_reading_progress", JSON.stringify(updated)); } catch {}
+        return updated;
+      }
+      return prev;
+    });
+    if (pct >= 90 && selectedArticle.unread) {
+      setArticles(prev => prev.map(a => (a.id === selectedArticle.id ? { ...a, unread: false } : a)));
+      updateArticleState(selectedArticle.id, { unread: false });
+    }
   };
 
   const toggleSave = async (id: string, e?: React.MouseEvent) => {
@@ -735,6 +778,28 @@ export default function ReaderDashboard() {
     ? getArticleParagraphs(selectedArticle.content)
     : [];
 
+  // Sync Listen mode audio playback with reading progress
+  useEffect(() => {
+    if (!isListenModeActive || !selectedArticle || currentArticleParagraphs.length === 0) return;
+    const pct = Math.min(
+      100,
+      Math.max(0, Math.round(((activeSpeechParagraph + 1) / currentArticleParagraphs.length) * 100))
+    );
+    setReadingProgress(prev => {
+      const current = prev[selectedArticle.id] || 0;
+      if (pct > current) {
+        const updated = { ...prev, [selectedArticle.id]: pct };
+        try { localStorage.setItem("sw_reading_progress", JSON.stringify(updated)); } catch {}
+        return updated;
+      }
+      return prev;
+    });
+    if (pct >= 90 && selectedArticle.unread) {
+      setArticles(prev => prev.map(a => (a.id === selectedArticle.id ? { ...a, unread: false } : a)));
+      updateArticleState(selectedArticle.id, { unread: false });
+    }
+  }, [activeSpeechParagraph, isListenModeActive, selectedArticle, currentArticleParagraphs.length]);
+
   const handleCloseReadingDrawer = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -844,20 +909,7 @@ export default function ReaderDashboard() {
           </Link>
           <div className={`h-4 w-px hidden sm:block ${isDark ? "bg-[#2d2924]" : "bg-[#e8dfd1]"}`} />
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsSidebarCollapsed(prev => !prev)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                isDark ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#221f1c]" : "text-[#786b59] hover:text-[#b45309] hover:bg-[#f4ece1]"
-              }`}
-              title={isSidebarCollapsed ? "Open sidebar" : "Collapse sidebar"}
-            >
-              {isSidebarCollapsed ? (
-                <PanelLeftOpen className="w-4 h-4" />
-              ) : (
-                <PanelLeftClose className="w-4 h-4" />
-              )}
-            </button>
+          <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#b45309] text-white flex items-center justify-center shadow-xs">
               <Feather className="w-4 h-4 text-white" />
             </div>
@@ -1086,9 +1138,6 @@ export default function ReaderDashboard() {
                   <Orbit className={`w-4 h-4 ${viewMode === "graph" ? "text-[#b45309] animate-spin" : "text-[#b45309]"}`} style={{ animationDuration: "16s" }} />
                   <span>Constellation</span>
                 </span>
-                <span className="text-[10px] font-mono text-[#b45309] font-bold">
-                  星座
-                </span>
               </button>
             </div>
 
@@ -1284,139 +1333,60 @@ export default function ReaderDashboard() {
                       isDark ? "text-[#a89d8f]" : "text-[#786b59]"
                     }`}>
                       {viewMode === "graph"
-                        ? "Decentralized Small Web co-subscription graph • PECFest Mystic Mikado Special Edition"
+                        ? "Co-subscription proximity graph of your curated library."
                         : "Latest writings from your curated library. Sorted purely by chronologic delivery."}
                     </p>
                   </div>
 
-                  {/* Feed Actions */}
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <span className={`text-xs font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
-                      {filteredArticles.length} essays
-                    </span>
+                  {/* Feed Actions - Only show in Timeline mode */}
+                  {viewMode !== "graph" && (
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className={`text-xs font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
+                        {filteredArticles.length} essays
+                      </span>
 
-                    {/* Manual Background Refresh Button */}
-                    <button
-                      onClick={handleManualRefresh}
-                      disabled={isRefreshing}
-                      className={`text-xs font-serif font-medium px-3 py-1.5 rounded-xl border transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 ${
-                        isDark
-                          ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
-                          : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
-                      }`}
-                      title="Sync and check feeds for fresh essays"
-                    >
-                      <RefreshCw className={`w-3 h-3 text-[#b45309] ${isRefreshing ? "animate-spin" : ""}`} />
-                      <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
-                    </button>
+                      {/* Manual Background Refresh Button */}
+                      <button
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className={`text-xs font-serif font-medium px-3 py-1.5 rounded-xl border transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 ${
+                          isDark
+                            ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
+                            : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
+                        }`}
+                        title="Sync and check feeds for fresh essays"
+                      >
+                        <RefreshCw className={`w-3 h-3 text-[#b45309] ${isRefreshing ? "animate-spin" : ""}`} />
+                        <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
+                      </button>
 
-                    <button
-                      onClick={markAllRead}
-                      className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-colors shadow-xs ${
-                        isDark
-                          ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
-                          : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
-                      }`}
-                    >
-                      Mark all read
-                    </button>
-                  </div>
+                      <button
+                        onClick={markAllRead}
+                        className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-colors shadow-xs ${
+                          isDark
+                            ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
+                            : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
+                        }`}
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {/* View Mode Rendering: Portal Gate or Articles Feed */}
+                {/* View Mode Rendering: Inline Constellation Graph or Articles Feed */}
                 {viewMode === "graph" ? (
-                  <div className="py-4 space-y-8 font-serif">
-                    {/* Warm Editorial Portal Gate Card */}
-                    <div className={`relative overflow-hidden rounded-3xl border shadow-md p-8 sm:p-12 space-y-6 transition-colors duration-200 ${
-                      isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e2d6c3] text-[#1f1c19]"
-                    }`}>
-                      {/* Subtle Japanese Watermark in Background */}
-                      <div className={`absolute -right-4 -bottom-6 select-none pointer-events-none text-[160px] font-serif font-black leading-none ${
-                        isDark ? "text-amber-500/5" : "text-[#e8dfd1]/35"
-                      }`}>
-                        星座
-                      </div>
-
-                      <div className="space-y-3 relative z-10">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full font-bold ${
-                            isDark
-                              ? "text-amber-400 bg-amber-950/60 border border-amber-800/60"
-                              : "text-[#92400e] bg-[#fef3c7] border border-[#fde68a]"
-                          }`}>
-                            PECFest 2026 • Mystic Mikado
-                          </span>
-                          <span className={`text-xs font-mono ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>神秘の星座探訪</span>
-                        </div>
-
-                        <h2 className={`text-3xl sm:text-4xl font-serif font-bold tracking-tight leading-tight ${
-                          isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
-                        }`}>
-                          Constellation Discovery Graph
-                        </h2>
-
-                        <p className={`text-sm leading-relaxed max-w-xl font-serif ${isDark ? "text-[#aba092]" : "text-[#574e44]"}`}>
-                          Explore independent small web writers clustered by organic reader gravity and co-subscription affinities — completely insulated from corporate surveillance algorithms.
-                        </p>
-                      </div>
-
-                      {/* Feature Pillars */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 relative z-10">
-                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
-                          isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
-                        }`}>
-                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
-                            <Orbit className="w-3.5 h-3.5" /> 探索 • Explore
-                          </div>
-                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
-                            2D physics celestial gravity clusters of independent small web blogs.
-                          </p>
-                        </div>
-
-                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
-                          isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
-                        }`}>
-                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
-                            <Sparkles className="w-3.5 h-3.5" /> 縁 • Affinity
-                          </div>
-                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
-                            Discover peer overlapping recommendations with verified affinity scores.
-                          </p>
-                        </div>
-
-                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
-                          isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
-                        }`}>
-                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
-                            <BookOpen className="w-3.5 h-3.5" /> 読書 • Discovery
-                          </div>
-                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
-                            1-click follow blogs or instantly slide open latest essays in reading view.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Clean Warm Amber Enter Button */}
-                      <div className="pt-4 relative z-10 flex flex-wrap items-center gap-4">
-                        <button
-                          onClick={() => setIsConstellationModalOpen(true)}
-                          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                          <Orbit className="w-4 h-4 text-white" />
-                          <span>Enter Constellation Graph (Full Screen)</span>
-                        </button>
-
-                        <button
-                          onClick={() => setViewMode("timeline")}
-                          className={`text-xs font-serif transition-colors underline underline-offset-4 ${
-                            isDark ? "text-[#a89d8f] hover:text-[#fbbf24]" : "text-[#786b59] hover:text-[#b45309]"
-                          }`}
-                        >
-                          Return to Timeline
-                        </button>
-                      </div>
-
-                    </div>
+                  <div className="py-2 h-[calc(100vh-220px)] min-h-[620px] w-full">
+                    <ConstellationGraph
+                      isFullScreenModal={false}
+                      subscriptions={subscriptions}
+                      articles={articles}
+                      onToggleFullscreen={() => setIsConstellationModalOpen(true)}
+                      onSubscribeFeed={handleGraphSubscribe}
+                      onOpenArticle={(title, author) => {
+                        handleGraphOpenArticle(title, author);
+                      }}
+                    />
                   </div>
                 ) : filteredArticles.length === 0 ? (
                   <div className="py-20 text-center space-y-3">
@@ -1476,11 +1446,31 @@ export default function ReaderDashboard() {
 
                           {/* Quick Bottom Actions */}
                           <div className="flex items-center justify-between pt-2">
-                            <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                              isDark ? "bg-[#25211c] text-amber-300" : "bg-[#f4ece1] text-[#78350f]"
-                            }`}>
-                              {article.category}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                isDark ? "bg-[#25211c] text-amber-300" : "bg-[#f4ece1] text-[#78350f]"
+                              }`}>
+                                {article.category}
+                              </span>
+
+                              {/* Reading Progress Percentage Indicator */}
+                              {readingProgress[article.id] !== undefined && readingProgress[article.id] > 0 ? (
+                                <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                  readingProgress[article.id] >= 90
+                                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                    : "bg-[#fef3c7] dark:bg-amber-950/50 text-[#92400e] dark:text-amber-300 border border-amber-300 dark:border-amber-800/40"
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${
+                                    readingProgress[article.id] >= 90 ? "bg-emerald-500" : "bg-amber-500"
+                                  }`} />
+                                  <span>{readingProgress[article.id]}% read</span>
+                                </span>
+                              ) : !article.unread ? (
+                                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-medium px-1.5 py-0.5 rounded bg-emerald-500/10">
+                                  Read
+                                </span>
+                              ) : null}
+                            </div>
 
                             <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                               <button
@@ -1497,15 +1487,19 @@ export default function ReaderDashboard() {
                                 <Bookmark className="w-3.5 h-3.5" fill={article.saved ? "currentColor" : "none"} />
                               </button>
                               <button
-                                onClick={e => markAsRead(article.id, e)}
-                                className={`p-1.5 rounded-lg transition-colors ${
-                                  isDark
-                                    ? "hover:bg-[#25211c] text-[#8c8172] hover:text-[#f5efe6]"
-                                    : "hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19]"
+                                onClick={e => toggleReadStatus(article.id, e)}
+                                className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                                  article.unread
+                                    ? isDark
+                                      ? "text-[#8c8172] hover:text-emerald-400 hover:bg-[#25211c]"
+                                      : "text-[#8c7e6c] hover:text-[#10b981] hover:bg-[#f3ecdf]"
+                                    : isDark
+                                    ? "text-emerald-400 bg-emerald-950/40 border border-emerald-800/40"
+                                    : "text-[#10b981] bg-[#d1fae5] border border-[#a7f3d0]"
                                 }`}
-                                title="Mark read"
+                                title={article.unread ? "Mark as read" : "Mark as unread"}
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <CheckCircle2 className={`w-3.5 h-3.5 ${!article.unread ? "fill-emerald-500/20" : ""}`} />
                               </button>
                             </div>
                           </div>
@@ -1689,7 +1683,9 @@ export default function ReaderDashboard() {
                     <h5 className={`font-serif text-xs font-semibold truncate ${
                       isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
                     }`}>{a.title}</h5>
-                    <p className={`font-mono text-[10px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>{a.blogName} • 4 min left</p>
+                    <p className={`font-mono text-[10px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
+                      {a.blogName} • {readingProgress[a.id] ? `${readingProgress[a.id]}% done` : a.readTime}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -1860,6 +1856,18 @@ export default function ReaderDashboard() {
                 <div className="flex items-center gap-2">
                   <Feather className="w-3.5 h-3.5 text-[#b45309]" />
                   <span className={`font-serif font-bold text-xs ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Reading View</span>
+                  {selectedArticle && readingProgress[selectedArticle.id] !== undefined && readingProgress[selectedArticle.id] > 0 && (
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium ml-1 flex items-center gap-1 ${
+                      readingProgress[selectedArticle.id] >= 90
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        : "bg-[#fef3c7] dark:bg-amber-950/50 text-[#92400e] dark:text-amber-300 border border-amber-300 dark:border-amber-800/40"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        readingProgress[selectedArticle.id] >= 90 ? "bg-emerald-500" : "bg-amber-500"
+                      }`} />
+                      <span>{readingProgress[selectedArticle.id]}% completed</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1989,7 +1997,10 @@ export default function ReaderDashboard() {
               </AnimatePresence>
 
               {/* Reader Body Content */}
-              <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-10">
+              <div
+                onScroll={handleDrawerScroll}
+                className="flex-1 overflow-y-auto px-6 sm:px-12 py-10"
+              >
                 <div className={`space-y-6 ${isReaderFullscreen ? "max-w-3xl mx-auto w-full transition-all duration-300" : ""}`}>
                   <div>
                     <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">
@@ -2119,10 +2130,13 @@ export default function ReaderDashboard() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="fixed inset-0 z-50 bg-[#fbf8f2] flex flex-col"
+            className={`fixed inset-0 z-50 flex flex-col ${isDark ? "bg-[#12100e]" : "bg-[#fbf8f2]"}`}
           >
             <ConstellationGraph
               isFullScreenModal={true}
+              subscriptions={subscriptions}
+              articles={articles}
+              onToggleFullscreen={() => setIsConstellationModalOpen(false)}
               onSubscribeFeed={handleGraphSubscribe}
               onOpenArticle={(title, author) => {
                 setIsConstellationModalOpen(false);
