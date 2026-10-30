@@ -457,6 +457,19 @@ export default function ReaderDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Real-time Network Connectivity Monitor (Offline-first notice)
+  useEffect(() => {
+    const handleOnline = () => triggerToast("Back online — Feeds ready to sync", "success", "Connected");
+    const handleOffline = () => triggerToast("Offline mode — Reading from local IndexedDB sanctuary", "info", "Offline");
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   const triggerToast = (msg: string, customType?: "info" | "success" | "loading" | "error", customBadge?: string) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
 
