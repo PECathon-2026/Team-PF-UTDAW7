@@ -10,7 +10,7 @@
 import { ParsedArticle } from "./feedParser";
 
 const DB_NAME = "SmallWebReaderDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface StoredSubscription {
   id: string;
@@ -69,6 +69,13 @@ function openDB(): Promise<IDBDatabase> {
       // 4. Preferences Store
       if (!db.objectStoreNames.contains("preferences")) {
         db.createObjectStore("preferences", { keyPath: "key" });
+      }
+
+      // 5. Reading Activity Store (Task: Weekly Reading Activity Tracker)
+      if (!db.objectStoreNames.contains("readingActivity")) {
+        const actStore = db.createObjectStore("readingActivity", { keyPath: "articleId" });
+        actStore.createIndex("by_timestamp", "timestamp", { unique: false });
+        actStore.createIndex("by_feedUrl", "feedUrl", { unique: false });
       }
     };
 
@@ -365,5 +372,180 @@ export async function idbSetPreference<T>(key: string, value: T): Promise<void> 
     });
   } catch (err) {
     console.warn("idbSetPreference error:", err);
+  }
+}
+
+// ==============================================================================
+// 5. Weekly Reading Activity Tracker Operations (Task: Activity Tracking)
+// ==============================================================================
+
+export interface ReadingActivityEvent {
+  articleId: string;
+  title: string;
+  feedUrl: string;
+  timestamp: number;
+  readTimeMinutes?: number;
+  active: boolean;
+}
+
+/**
+ * Record a reading event when an article is marked read.
+ * Prevents duplicate counting: if already active, returns existing record without inflating.
+ * If previously marked unread, re-activates without creating duplicate records.
+ */
+export async function idbRecordReadingActivity(event: {
+  articleId: string;
+  title: string;
+  feedUrl?: string;
+  timestamp?: number;
+  readTimeMinutes?: number;
+}): Promise<ReadingActivityEvent> {
+  const fallbackRecord: ReadingActivityEvent = {
+    articleId: event.articleId,
+    title: event.title || "Untitled Article",
+    feedUrl: event.feedUrl || "",
+    timestamp: event.timestamp || Date.now(),
+    readTimeMinutes: event.readTimeMinutes || 5,
+    active: true,
+  };
+
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("readingActivity", "readwrite");
+      const store = tx.objectStore("readingActivity");
+      const req = store.get(event.articleId);
+
+      req.onsuccess = () => {
+        const existing: ReadingActivityEvent | undefined = req.result;
+        if (existing) {
+          // If already marked read (active === true), DO NOT inflate or alter timestamp
+          if (existing.active) {
+            resolve(existing);
+            return;
+          }
+          // If previously marked unread, re-activate with its original timestamp to prevent duplicate inflation
+          const reactivated: ReadingActivityEvent = {
+            ...existing,
+            title: event.title || existing.title,
+            feedUrl: event.feedUrl || existing.feedUrl,
+            active: true,
+          };
+          store.put(reactivated);
+          resolve(reactivated);
+        } else {
+          // Brand new read event
+          store.put(fallbackRecord);
+          resolve(fallbackRecord);
+        }
+      };
+
+      req.onerror = () => {
+        store.put(fallbackRecord);
+        resolve(fallbackRecord);
+      };
+
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn("idbRecordReadingActivity fallback:", err);
+    return fallbackRecord;
+  }
+}
+
+/**
+ * Update reading status when an article is marked unread.
+ * Sets active: false so it is excluded from reading activity calculations without inflating future reads.
+ */
+export async function idbRemoveReadingActivity(articleId: string): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("readingActivity", "readwrite");
+      const store = tx.objectStore("readingActivity");
+      const req = store.get(articleId);
+
+      req.onsuccess = () => {
+        const existing: ReadingActivityEvent | undefined = req.result;
+        if (existing) {
+          store.put({
+            ...existing,
+            active: false,
+          });
+        }
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn("idbRemoveReadingActivity error:", err);
+  }
+}
+
+/**
+ * Retrieve all active reading events from IndexedDB, sorted newest first.
+ */
+export async function idbGetReadingActivities(): Promise<ReadingActivityEvent[]> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("readingActivity", "readonly");
+      const store = tx.objectStore("readingActivity");
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const all: ReadingActivityEvent[] = req.result || [];
+        // Only return active read events (filters out unread articles)
+        const activeOnly = all.filter((ev) => ev && ev.active !== false);
+        // Sort newest first
+        activeOnly.sort((a, b) => b.timestamp - a.timestamp);
+        resolve(activeOnly);
+      };
+
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn("idbGetReadingActivities fallback:", err);
+    return [];
+  }
+}
+
+/**
+ * Seeds initial reading activity events for initial demo articles that start as read (unread === false),
+ * ensuring the dashboard immediately renders a live reading activity timeline rather than remaining empty.
+ */
+export async function idbSeedInitialReadingActivitiesIfEmpty(articles: ParsedArticle[]): Promise<void> {
+  try {
+    const existing = await idbGetReadingActivities();
+    if (existing.length > 0) return; // Already has real user activity
+
+    const readArticles = articles.filter((a) => !a.unread);
+    if (readArticles.length === 0) return;
+
+    const db = await openDB();
+    const tx = db.transaction("readingActivity", "readwrite");
+    const store = tx.objectStore("readingActivity");
+
+    const now = Date.now();
+    // Distribute seed read events across the current week for initial visualization
+    readArticles.forEach((art, index) => {
+      const dayOffsetMs = index * 86400000;
+      store.put({
+        articleId: art.id,
+        title: art.title,
+        feedUrl: art.url || art.blogId,
+        timestamp: Math.max(now - dayOffsetMs, art.publishedAt || now - dayOffsetMs),
+        readTimeMinutes: parseInt(art.readTime) || 6,
+        active: true,
+      });
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn("idbSeedInitialReadingActivitiesIfEmpty fallback:", err);
   }
 }

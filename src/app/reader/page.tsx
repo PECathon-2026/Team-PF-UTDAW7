@@ -62,7 +62,15 @@ import {
   StoredSubscription,
   syncAnonymousDiscoveryIfOptedIn,
 } from "@/lib/client/storage";
-import { idbUpdateArticle } from "@/lib/client/idb";
+import {
+  idbUpdateArticle,
+  idbRecordReadingActivity,
+  idbRemoveReadingActivity,
+  idbGetReadingActivities,
+  idbSeedInitialReadingActivitiesIfEmpty,
+  ReadingActivityEvent,
+} from "@/lib/client/idb";
+import WeeklyActivityCard from "@/components/reader/WeeklyActivityCard";
 import { refreshAllFeeds } from "@/lib/client/feedSync";
 import {
   exportToOpml,
@@ -281,6 +289,9 @@ export default function ReaderDashboard() {
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Dynamic Reading Activity Tracker State
+  const [readingActivities, setReadingActivities] = useState<ReadingActivityEvent[]>([]);
+
   // Loading & Sync States
   const [isAddingFeed, setIsAddingFeed] = useState(false);
   const [isExtractingArticle, setIsExtractingArticle] = useState(false);
@@ -344,6 +355,12 @@ export default function ReaderDashboard() {
       if (!isMounted) return;
       setSubscriptions(storedSubs as any);
       setArticles(storedArts as any);
+
+      // Seed initial reading activities if empty and load all recorded activities
+      await idbSeedInitialReadingActivitiesIfEmpty(storedArts as any);
+      const loadedActivities = await idbGetReadingActivities();
+      if (!isMounted) return;
+      setReadingActivities(loadedActivities);
 
       if (typeof window !== "undefined" && window.location.pathname.includes("/discover")) {
         setActiveTab("discover");
@@ -430,11 +447,39 @@ export default function ReaderDashboard() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Persistent User Actions
-  const markAsRead = async (id: string, e?: React.MouseEvent) => {
+  // Persistent User Actions with Dynamic Reading Activity Tracking
+  const markAsRead = async (id: string, e?: React.MouseEvent, forceRead?: boolean) => {
     if (e) e.stopPropagation();
-    setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: false } : a)));
-    await updateArticleState(id, { unread: false });
+    const target = articles.find(a => a.id === id);
+    const willBeRead = forceRead !== undefined ? forceRead : target ? target.unread : true;
+
+    setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: !willBeRead } : a)));
+    await updateArticleState(id, { unread: !willBeRead });
+
+    if (willBeRead) {
+      // Record reading activity event (preventing duplicate counts at store level)
+      const readMins = target ? parseInt(target.readTime) || 5 : 5;
+      const act = await idbRecordReadingActivity({
+        articleId: id,
+        title: target?.title || "Article",
+        feedUrl: target?.url || target?.blogId || "",
+        readTimeMinutes: readMins,
+      });
+
+      setReadingActivities(prev => {
+        const exists = prev.some(p => p.articleId === id);
+        if (exists) {
+          return prev.map(p => (p.articleId === id ? act : p));
+        }
+        return [act, ...prev];
+      });
+      triggerToast("Marked as read");
+    } else {
+      // Mark as unread: update reading status in IndexedDB appropriately
+      await idbRemoveReadingActivity(id);
+      setReadingActivities(prev => prev.filter(p => p.articleId !== id));
+      triggerToast("Marked as unread");
+    }
   };
 
   const toggleSave = async (id: string, e?: React.MouseEvent) => {
@@ -454,12 +499,22 @@ export default function ReaderDashboard() {
   };
 
   const markAllRead = async () => {
+    const unreadArticles = articles.filter(a => a.unread);
     setArticles(prev => prev.map(a => ({ ...a, unread: false })));
-    for (const a of articles) {
-      if (a.unread) {
-        await updateArticleState(a.id, { unread: false });
-      }
+
+    for (const a of unreadArticles) {
+      await updateArticleState(a.id, { unread: false });
+      const readMins = parseInt(a.readTime) || 5;
+      await idbRecordReadingActivity({
+        articleId: a.id,
+        title: a.title,
+        feedUrl: a.url || a.blogId || "",
+        readTimeMinutes: readMins,
+      });
     }
+
+    const refreshed = await idbGetReadingActivities();
+    setReadingActivities(refreshed);
     triggerToast("All articles marked as read");
   };
 
@@ -593,7 +648,7 @@ export default function ReaderDashboard() {
   // Full-Text Readability + DOMPurify with Persistent Article Content
   const handleSelectArticle = async (article: Article) => {
     setSelectedArticle(article);
-    await markAsRead(article.id);
+    await markAsRead(article.id, undefined, true);
 
     // If article body is short or missing, extract full document
     if (article.url && (!article.content || article.content.length < 800)) {
@@ -1499,11 +1554,13 @@ export default function ReaderDashboard() {
                               <button
                                 onClick={e => markAsRead(article.id, e)}
                                 className={`p-1.5 rounded-lg transition-colors ${
-                                  isDark
+                                  !article.unread
+                                    ? "text-[#10b981] hover:text-[#059669] hover:bg-[#d1fae5]/30"
+                                    : isDark
                                     ? "hover:bg-[#25211c] text-[#8c8172] hover:text-[#f5efe6]"
                                     : "hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19]"
                                 }`}
-                                title="Mark read"
+                                title={article.unread ? "Mark read" : "Mark unread"}
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               </button>
@@ -1599,61 +1656,12 @@ export default function ReaderDashboard() {
             </button>
           </div>
 
-          {/* Weekly Reading Chart Card */}
-          <div className={`rounded-2xl p-5 shadow-xs space-y-4 border transition-colors ${
-            isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e8dfd1] text-[#1f1c19]"
-          }`}>
-            <h4 className={`font-serif font-bold text-sm ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Weekly Activity</h4>
-            
-            <div className={`grid grid-cols-3 text-center border-b pb-3 font-serif ${
-              isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"
-            }`}>
-              <div>
-                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>12</div>
-                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>essays read</div>
-              </div>
-              <div>
-                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>{savedTotal}</div>
-                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>saved</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-[#b45309]">3h 24m</div>
-                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>deep time</div>
-              </div>
-            </div>
-
-            {/* Weekly Bars */}
-            <div className="flex items-end justify-between h-16 pt-2 px-1">
-              {[
-                { day: "M", h: "h-8", active: false },
-                { day: "T", h: "h-6", active: false },
-                { day: "W", h: "h-11", active: false },
-                { day: "T", h: "h-7", active: false },
-                { day: "F", h: "h-14", active: true },
-                { day: "S", h: "h-9", active: false },
-                { day: "S", h: "h-8", active: false }
-              ].map((bar, i) => (
-                <div key={i} className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`w-4 rounded-t transition-all ${
-                      bar.active
-                        ? "bg-[#b45309] shadow-xs"
-                        : isDark
-                        ? "bg-[#2d2924] hover:bg-[#38332c]"
-                        : "bg-[#e2d6c3] hover:bg-[#d6caba]"
-                    } ${bar.h}`}
-                  />
-                  <span className={`text-[9px] font-mono ${
-                    bar.active
-                      ? "font-bold text-[#b45309]"
-                      : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
-                  }`}>
-                    {bar.day}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Dynamic Weekly Reading Activity Tracker */}
+          <WeeklyActivityCard
+            activities={readingActivities}
+            savedTotal={savedTotal}
+            isDark={isDark}
+          />
 
           {/* Continue Reading Cards */}
           <div className="space-y-3">
