@@ -11,6 +11,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Compass, ArrowRight, Feather, Coffee, Sparkles, ChevronDown } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import { useTheme } from "@/context/ThemeContext";
 
 interface BlogCardItem {
     src: string;
@@ -224,6 +226,7 @@ function TunnelCard({ card, progress, pointer, total, stage }: TunnelCardProps) 
 }
 
 export default function PerspectiveTunnelHero() {
+    const { isDark } = useTheme();
     const containerRef = useRef<HTMLDivElement>(null);
     const reduce = useReducedMotion();
 
@@ -358,24 +361,29 @@ export default function PerspectiveTunnelHero() {
     return (
         <div
             ref={containerRef}
-            className="relative h-[100svh] w-screen overflow-hidden bg-[#fbf8f2] text-[#1f1c19] select-none flex items-center justify-center font-sans"
+            className={`relative h-[100svh] w-screen overflow-hidden select-none flex items-center justify-center font-sans transition-colors duration-300 ${
+                isDark ? "bg-[#121110] text-[#f5efe6]" : "bg-[#fbf8f2] text-[#1f1c19]"
+            }`}
             style={{
                 perspective: stage.isMobile ? "900px" : "1200px",
                 transformStyle: "preserve-3d",
             }}
         >
             {/* Top Navigation Bar: Warm Parchment & Linen */}
-            <header className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-6 sm:px-10 py-5 border-b border-[#e8dfd3]/90 backdrop-blur-md bg-[#fbf8f2]/85">
+            <header className={`absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-6 sm:px-10 py-5 border-b backdrop-blur-md transition-colors duration-300 ${
+                isDark ? "border-[#2d2924] bg-[#141210]/90 text-[#f5efe6]" : "border-[#e8dfd3]/90 bg-[#fbf8f2]/85 text-[#1f1c19]"
+            }`}>
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-md bg-[#b45309] flex items-center justify-center text-white font-serif font-bold text-base shadow-sm">
                         ¶
                     </div>
                     <div>
-                        <span className="font-serif font-medium text-base tracking-tight text-[#1f1c19]">The Small Web Reader</span>
+                        <span className={`font-serif font-medium text-base tracking-tight ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>The Small Web Reader</span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3">
+                    <ThemeToggle />
                     <Link
                         href="/reader"
                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#b45309] text-white hover:bg-[#92400e] text-xs font-serif font-medium transition-all hover:scale-105 shadow-sm shadow-[#b45309]/20"
@@ -409,13 +417,19 @@ export default function PerspectiveTunnelHero() {
                 style={{ scale: titleScale, opacity: titleOpacity }}
                 className="pointer-events-none z-10 flex flex-col items-center text-center px-6 max-w-2xl"
             >
-                <h1 className="text-4xl sm:text-6xl md:text-7xl font-serif font-normal tracking-tight leading-[1.08] text-[#1f1c19]">
+                <h1 className={`text-4xl sm:text-6xl md:text-7xl font-serif font-normal tracking-tight leading-[1.08] ${
+                    isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                }`}>
                     Read the Original Web.
                     <br />
-                    <span className="italic font-light text-[#786b59]">Before Algorithms Took Over.</span>
+                    <span className={`italic font-light ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>
+                        Before Algorithms Took Over.
+                    </span>
                 </h1>
                 
-                <p className="mt-5 max-w-[44ch] text-sm sm:text-base font-serif text-[#574e44] leading-relaxed">
+                <p className={`mt-5 max-w-[44ch] text-sm sm:text-base font-serif leading-relaxed ${
+                    isDark ? "text-[#b0a597]" : "text-[#574e44]"
+                }`}>
                     A calm, offline-first sanctuary for longform thinkers, digital gardens, and indie blogs. Discovered through human reader overlap, never corporate tracking.
                 </p>
 

@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { ShieldCheck, ShieldAlert, Lock, CheckCircle2, AlertOctagon, Terminal } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function SecurityThreatModel() {
+  const { isDark } = useTheme();
   const [testUrl, setTestUrl] = useState<string>("http://127.0.0.1:8080/admin");
   const [securityResult, setSecurityResult] = useState<{
     status: "idle" | "blocked" | "allowed";
@@ -44,18 +46,26 @@ export default function SecurityThreatModel() {
   };
 
   return (
-    <section className="py-24 px-6 sm:px-12 bg-[#fbf8f2] text-[#1f1c19]">
+    <section className={`py-24 px-6 sm:px-12 transition-colors duration-300 ${
+      isDark ? "bg-[#121110] text-[#f5efe6]" : "bg-[#fbf8f2] text-[#1f1c19]"
+    }`}>
       <div className="max-w-6xl mx-auto space-y-16">
         {/* Header */}
         <div className="max-w-2xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f3ecdf] border border-[#e2d6c3] text-[#92400e] text-xs font-mono uppercase tracking-widest">
-            <Lock className="w-3 h-3 text-[#b45309]" />
+          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono uppercase tracking-widest ${
+            isDark ? "bg-[#25211c] border-[#38332c] text-amber-400" : "bg-[#f3ecdf] border-[#e2d6c3] text-[#92400e]"
+          }`}>
+            <Lock className={`w-3 h-3 ${isDark ? "text-amber-400" : "text-[#b45309]"}`} />
             <span>Rubric Integrity & Threat Model</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-serif font-normal text-[#1f1c19] tracking-tight">
+          <h2 className={`text-3xl sm:text-5xl font-serif font-normal tracking-tight ${
+            isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+          }`}>
             Security & Privacy by Design
           </h2>
-          <p className="font-serif text-[#6b5f50] text-sm sm:text-base leading-relaxed">
+          <p className={`font-serif text-sm sm:text-base leading-relaxed ${
+            isDark ? "text-[#a89d8f]" : "text-[#6b5f50]"
+          }`}>
             The PS-003 specification mandates verifiable threat mitigation. Here is how our architecture enforces zero-knowledge boundaries and defends against abuse.
           </p>
         </div>
@@ -63,8 +73,12 @@ export default function SecurityThreatModel() {
         {/* 2-Column: Privacy Boundary + Interactive SSRF Simulator */}
         <div className="grid lg:grid-cols-2 gap-8 items-start">
           {/* Column 1: What is Stored vs Never Stored */}
-          <div className="rounded-2xl bg-[#fffdfa] border border-[#e8dfd3] p-8 space-y-6 shadow-xs">
-            <h3 className="text-xl font-serif text-[#1f1c19] pb-4 border-b border-[#f0e6d6]">
+          <div className={`rounded-2xl border p-8 space-y-6 shadow-xs transition-colors duration-200 ${
+            isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fffdfa] border-[#e8dfd3] text-[#1f1c19]"
+          }`}>
+            <h3 className={`text-xl font-serif pb-4 border-b ${
+              isDark ? "border-[#2d2924] text-[#f5efe6]" : "border-[#f0e6d6] text-[#1f1c19]"
+            }`}>
               Data Boundary Contract
             </h3>
 

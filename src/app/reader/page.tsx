@@ -23,13 +23,26 @@ import {
   Rss,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   ChevronLeft,
   ChevronRight,
   Loader2,
   Download,
   Upload,
   RefreshCw,
+  Orbit,
+  Moon,
+  Headphones,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
+import ConstellationGraph from "@/components/graph/ConstellationGraph";
+import ListenModePlayer from "@/components/reader/ListenModePlayer";
+import AiDigestCard from "@/components/reader/AiDigestCard";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import { useTheme } from "@/context/ThemeContext";
+import { generateOnDeviceDigest, ArticleDigest } from "@/lib/summarizer";
 
 import {
   autodiscoverFeedUrl,
@@ -256,6 +269,7 @@ const INITIAL_ARTICLES: Article[] = [
 ];
 
 export default function ReaderDashboard() {
+  const { isDark } = useTheme();
   const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "saved" | "discover">("all");
@@ -272,10 +286,31 @@ export default function ReaderDashboard() {
   const [isExtractingArticle, setIsExtractingArticle] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Resizable Sidebar State
+  // Mystic Mikado Constellation State
+  const [viewMode, setViewMode] = useState<"timeline" | "graph">("timeline");
+  const [isConstellationModalOpen, setIsConstellationModalOpen] = useState(false);
+
+  // Listen Mode (TTS Audio Player) State
+  const [isListenModeActive, setIsListenModeActive] = useState(false);
+  const [activeSpeechParagraph, setActiveSpeechParagraph] = useState(0);
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState(false);
+
+  // On-Device AI Digest State
+  const [isAiDigestOpen, setIsAiDigestOpen] = useState(false);
+  const [cachedDigest, setCachedDigest] = useState<ArticleDigest | null>(null);
+
+  // Reader Full Screen Toggle State
+  const [isReaderFullscreen, setIsReaderFullscreen] = useState(false);
+
+  // Resizable Left Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(270);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const isResizingRef = useRef(false);
+
+  // Right Telemetry Sidebar State
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+  const isRightResizingRef = useRef(false);
 
   // Saved Posts Dropdown State
   const [isSavedDropdownOpen, setIsSavedDropdownOpen] = useState(false);
@@ -333,28 +368,42 @@ export default function ReaderDashboard() {
     };
   }, []);
 
-  // Resize Sidebar Event Listeners
+  // Resize Sidebars (Left & Right) Event Listeners
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setIsSidebarCollapsed(true);
     }
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current) return;
-      if (e.clientX < 100) {
-        setIsSidebarCollapsed(true);
-        isResizingRef.current = false;
-        return;
+      if (isResizingRef.current) {
+        if (e.clientX < 100) {
+          setIsSidebarCollapsed(true);
+          isResizingRef.current = false;
+        } else {
+          setIsSidebarCollapsed(false);
+          const newWidth = Math.min(Math.max(e.clientX, 200), 420);
+          setSidebarWidth(newWidth);
+        }
       }
-      setIsSidebarCollapsed(false);
-      const newWidth = Math.min(Math.max(e.clientX, 200), 420);
-      setSidebarWidth(newWidth);
+      if (isRightResizingRef.current) {
+        if (window.innerWidth - e.clientX < 100) {
+          setIsRightSidebarCollapsed(true);
+          isRightResizingRef.current = false;
+        } else {
+          setIsRightSidebarCollapsed(false);
+          const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, 240), 480);
+          setRightSidebarWidth(newWidth);
+        }
+      }
     };
 
     const handleMouseUp = () => {
-      isResizingRef.current = false;
-      document.body.style.cursor = "default";
-      document.body.style.userSelect = "auto";
+      if (isResizingRef.current || isRightResizingRef.current) {
+        isResizingRef.current = false;
+        isRightResizingRef.current = false;
+        document.body.style.cursor = "default";
+        document.body.style.userSelect = "auto";
+      }
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -607,6 +656,110 @@ export default function ReaderDashboard() {
     }
   };
 
+  const handleGraphSubscribe = (name: string, domain: string) => {
+    const existing = subscriptions.find(s => s.name.toLowerCase() === name.toLowerCase());
+    if (!existing) {
+      const newSub: Subscription = {
+        id: "graph-" + Date.now(),
+        name,
+        category: "Indie Web",
+        unreadCount: 1,
+        initial: name.charAt(0).toUpperCase(),
+        color: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]"
+      };
+      setSubscriptions(prev => [newSub, ...prev]);
+      triggerToast(`Subscribed to ${name} via Graph Discovery`);
+    } else {
+      triggerToast(`Already subscribed to ${name}`);
+    }
+  };
+
+  const handleGraphOpenArticle = (title: string, author: string) => {
+    const existing = articles.find(
+      a => a.title.toLowerCase() === title.toLowerCase() || a.blogName.toLowerCase() === author.toLowerCase()
+    );
+    if (existing) {
+      setSelectedArticle(existing);
+      markAsRead(existing.id);
+    } else {
+      const newArticle: Article = {
+        id: "graph-art-" + Date.now(),
+        blogId: author.toLowerCase().replace(/\s+/g, ""),
+        blogName: author,
+        category: "Graph Recommended",
+        title,
+        excerpt: `An insightful independent essay by ${author}, discovered through decentralized co-subscription graph clustering.`,
+        content: `
+          <p class="lead font-serif italic text-lg text-[#574e44] mb-6">
+            Discovered via Small Web reader constellation analysis with ~80%+ peer co-subscription overlap.
+          </p>
+          <p class="mb-5 leading-relaxed">
+            This piece was authored by <strong>${author}</strong> and indexed into the local offline library. The Small Web network highlights works that readers of similar intellectual gardens frequently bookmark together.
+          </p>
+          <blockquote class="border-l-2 border-[#b45309] pl-4 my-6 italic text-[#786b59] font-serif">
+            "The best discoveries happen not through opaque commercial algorithms, but through serendipitous neighborhood graphs."
+          </blockquote>
+          <p class="mb-5 leading-relaxed">
+            All assets are served with zero third-party telemetry, sanitized HTML rendering, and stored directly in your local IndexedDB client sandbox.
+          </p>
+        `,
+        readTime: "5 min read",
+        date: "Discovered today",
+        unread: false,
+        saved: true,
+        image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+        url: `https://${author.toLowerCase().replace(/\s+/g, "")}.com`
+      };
+      setArticles(prev => [newArticle, ...prev]);
+      setSelectedArticle(newArticle);
+      triggerToast(`Opening: ${title}`);
+    }
+  };
+
+  // Helper to extract clean paragraphs for Listen Mode (TTS)
+  const getArticleParagraphs = (html: string): string[] => {
+    if (!html) return [];
+    return html
+      .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, "$1\n")
+      .replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .split("\n")
+      .map(p => p.trim())
+      .filter(p => p.length > 5);
+  };
+
+  const currentArticleParagraphs = selectedArticle
+    ? getArticleParagraphs(selectedArticle.content)
+    : [];
+
+  const handleCloseReadingDrawer = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeechPlaying(false);
+    setIsListenModeActive(false);
+    setActiveSpeechParagraph(0);
+    setIsAiDigestOpen(false);
+    setCachedDigest(null);
+    setIsReaderFullscreen(false);
+    setSelectedArticle(null);
+  };
+
+  const handleToggleAiDigest = () => {
+    if (!isAiDigestOpen) {
+      if (!cachedDigest && selectedArticle) {
+        const digest = generateOnDeviceDigest(selectedArticle.content);
+        setCachedDigest(digest);
+      }
+      setIsAiDigestOpen(true);
+    } else {
+      setIsAiDigestOpen(false);
+    }
+  };
+
   // Unique categories for dropdown filter
   const categories = ["all", ...Array.from(new Set(subscriptions.map(s => s.category)))];
 
@@ -638,7 +791,11 @@ export default function ReaderDashboard() {
   const savedTotal = savedArticlesList.length;
 
   return (
-    <div className="flex flex-col h-screen bg-[#fbf8f2] text-[#1f1c19] overflow-hidden select-none font-sans">
+    <div className={`h-screen flex flex-col font-sans overflow-hidden select-none transition-colors duration-200 ${
+      isDark
+        ? "bg-[#121110] text-[#f5efe6] selection:bg-amber-900/40 selection:text-amber-200"
+        : "bg-[#fbf8f2] text-[#1f1c19] selection:bg-[#b45309]/15 selection:text-[#92400e]"
+    }`}>
       
       {/* Hidden file input for OPML import */}
       <input
@@ -655,8 +812,12 @@ export default function ReaderDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 15 }}
-            className="fixed bottom-6 right-6 z-50 bg-[#1f1c19] text-[#fbf8f2] px-4 py-2.5 rounded-xl shadow-xl text-xs font-mono flex items-center gap-2 border border-[#443c35]"
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 text-xs font-mono px-4 py-2 rounded-full shadow-lg border flex items-center gap-2 ${
+              isDark
+                ? "bg-[#221f1c] text-[#f5efe6] border-[#3d372f]"
+                : "bg-[#1f1c19] text-[#fbf8f2] border-[#38332c]"
+            }`}
           >
             <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
             <span>{notification}</span>
@@ -664,26 +825,31 @@ export default function ReaderDashboard() {
         )}
       </AnimatePresence>
 
-      {/* TOP NAVIGATION BAR */}
-      <header className="h-16 border-b border-[#e8dfd1] px-4 sm:px-6 flex items-center justify-between bg-[#fbf8f2] z-30 flex-shrink-0">
+      {/* TOP HEADER */}
+      <header className={`h-16 border-b px-4 sm:px-6 flex items-center justify-between z-30 flex-shrink-0 transition-colors duration-200 ${
+        isDark ? "border-[#2d2924] bg-[#141210]" : "border-[#e8dfd1] bg-[#fbf8f2]"
+      }`}>
         
         {/* Left: Back Link & Branding */}
         <div className="flex items-center gap-4">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs font-serif text-[#786b59] hover:text-[#b45309] transition-colors p-1.5 rounded-lg hover:bg-[#f4ece1]"
+            className={`flex items-center gap-1.5 text-xs font-mono transition-colors p-1.5 rounded-lg ${
+              isDark ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#221f1c]" : "text-[#786b59] hover:text-[#b45309] hover:bg-[#f4ece1]"
+            }`}
             title="Return to Landing"
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">Landing</span>
           </Link>
-
-          <div className="h-4 w-[1px] bg-[#e8dfd1] hidden sm:block" />
+          <div className={`h-4 w-px hidden sm:block ${isDark ? "bg-[#2d2924]" : "bg-[#e8dfd1]"}`} />
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsSidebarCollapsed(prev => !prev)}
-              className="p-1.5 rounded-lg text-[#786b59] hover:text-[#b45309] hover:bg-[#f4ece1] transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${
+                isDark ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#221f1c]" : "text-[#786b59] hover:text-[#b45309] hover:bg-[#f4ece1]"
+              }`}
               title={isSidebarCollapsed ? "Open sidebar" : "Collapse sidebar"}
             >
               {isSidebarCollapsed ? (
@@ -692,31 +858,41 @@ export default function ReaderDashboard() {
                 <PanelLeftClose className="w-4 h-4" />
               )}
             </button>
-            <div className="w-7 h-7 rounded-lg bg-[#b45309] text-white flex items-center justify-center shadow-xs">
-              <Feather className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-[#b45309] text-white flex items-center justify-center shadow-xs">
+              <Feather className="w-4 h-4 text-white" />
             </div>
-            <span className="font-serif font-bold text-base sm:text-lg tracking-tight text-[#1f1c19]">
-              The Small Web Reader
-            </span>
+            <div>
+              <h1 className={`font-serif font-bold text-sm tracking-tight ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>small web</h1>
+              <p className={`text-[10px] font-mono uppercase tracking-widest ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>personal library</p>
+            </div>
           </div>
         </div>
 
-        {/* Center: Search Keyword */}
-        <div className="flex-1 max-w-md mx-4 hidden md:block">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8c7e6c]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Filter essays, topics, or authors..."
-              className="w-full bg-[#f4ece1]/70 border border-[#e2d6c3] rounded-xl pl-9 pr-4 py-1.5 text-xs font-serif placeholder-[#8c7e6c] focus:outline-none focus:ring-1 focus:ring-[#b45309] focus:bg-white transition-all text-[#1f1c19]"
-            />
-          </div>
+        {/* Global Search Bar */}
+        <div className="hidden md:flex items-center relative w-80">
+          <Search className="w-3.5 h-3.5 absolute left-3 text-[#8c7e6c]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search essays, systems, authors..."
+            className={`w-full border rounded-xl pl-9 pr-12 py-1.5 text-xs font-serif transition-all focus:outline-none focus:ring-1 focus:ring-[#b45309] ${
+              isDark
+                ? "bg-[#1d1a17] border-[#2d2924] text-[#f5efe6] placeholder-[#756a5c] focus:bg-[#221f1c]"
+                : "bg-[#f4ece1]/80 border-[#e2d6c3] text-[#1f1c19] placeholder-[#8c7e6c] focus:bg-white"
+            }`}
+          />
+          <kbd className={`absolute right-2.5 px-1.5 py-0.5 text-[9px] font-mono rounded border ${
+            isDark ? "bg-[#221f1c] border-[#38332c] text-[#a89d8f]" : "bg-white border-[#d6caba] text-[#8c7e6c]"
+          }`}>
+            ⌘K
+          </kbd>
         </div>
 
         {/* Right: Quick Actions */}
         <div className="flex items-center gap-3">
+          {/* Global Dark / Light Theme Toggle */}
+          <ThemeToggle />
           
           {/* Saved Posts Dropdown */}
           <div className="relative" ref={savedDropdownRef}>
@@ -812,22 +988,30 @@ export default function ReaderDashboard() {
             minWidth: isSidebarCollapsed ? 0 : undefined,
             maxWidth: isSidebarCollapsed ? 0 : undefined,
           }}
-          className={`bg-[#fbf8f2] flex flex-col justify-between transition-all duration-200 relative flex-shrink-0 ${
+          className={`flex flex-col justify-between relative flex-shrink-0 select-none transition-all duration-300 ease-in-out ${
+            isDark ? "border-[#2d2924] bg-[#161413]" : "border-[#e8dfd1] bg-[#f7f2e8]/60"
+          } ${
             isSidebarCollapsed
               ? "w-0 min-w-0 max-w-0 p-0 m-0 border-0 overflow-hidden invisible pointer-events-none"
-              : "p-4 border-r border-[#e8dfd1] overflow-y-auto"
+              : "p-4 border-r overflow-y-auto"
           }`}
         >
           <div className="space-y-6">
             
             {/* Sidebar Top: Collapse Button */}
             <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#8c7e6c] font-bold">
+              <span className={`text-[10px] font-mono uppercase tracking-wider font-bold ${
+                isDark ? "text-[#a89d8f]" : "text-[#8c7e6c]"
+              }`}>
                 Navigation
               </span>
               <button
                 onClick={() => setIsSidebarCollapsed(true)}
-                className="p-1 rounded-md text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors"
+                className={`p-1 rounded-md transition-colors ${
+                  isDark
+                    ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#25211c]"
+                    : "text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#ebdcc8]/50"
+                }`}
                 title="Collapse sidebar"
               >
                 <PanelLeftClose className="w-3.5 h-3.5" />
@@ -837,50 +1021,73 @@ export default function ReaderDashboard() {
             {/* Primary Nav Links */}
             <div className="space-y-1 text-xs">
               <button
-                onClick={() => { setActiveTab("all"); setSelectedBlogId(null); }}
+                onClick={() => { setViewMode("timeline"); setActiveTab("all"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "all" && !selectedBlogId
-                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
-                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                  viewMode === "timeline" && activeTab === "all" && !selectedBlogId
+                    ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
                 <span className="flex items-center gap-2.5">
                   <BookOpen className="w-4 h-4" /> Timeline
                 </span>
-                <span className="text-[10px] font-mono bg-[#ebdcc8] text-[#78350f] px-2 py-0.5 rounded-full font-bold">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  isDark ? "bg-[#2d2924] text-amber-200" : "bg-[#ebdcc8] text-[#78350f]"
+                }`}>
                   {articles.length}
                 </span>
               </button>
 
               <button
-                onClick={() => { setActiveTab("discover"); setSelectedBlogId(null); }}
+                onClick={() => { setViewMode("timeline"); setActiveTab("discover"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "discover"
-                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
-                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                  viewMode === "timeline" && activeTab === "discover"
+                    ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
                 <span className="flex items-center gap-2.5">
                   <Sparkles className="w-4 h-4 text-[#b45309]" /> Discovery Hub
                 </span>
-                <span className="text-[10px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  isDark ? "bg-amber-950/60 text-amber-300" : "bg-[#fef3c7] text-[#92400e]"
+                }`}>
                   Explore
                 </span>
               </button>
 
               <button
-                onClick={() => { setActiveTab("unread"); setSelectedBlogId(null); }}
+                onClick={() => { setViewMode("timeline"); setActiveTab("unread"); setSelectedBlogId(null); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
-                  activeTab === "unread"
-                    ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
-                    : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                  viewMode === "timeline" && activeTab === "unread"
+                    ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
                 <span className="flex items-center gap-2.5">
                   <span className="w-2 h-2 rounded-full bg-[#b45309]" /> Unread
                 </span>
-                <span className="text-[10px] font-mono bg-[#fef3c7] text-[#92400e] px-2 py-0.5 rounded-full font-bold">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  isDark ? "bg-amber-950/60 text-amber-300" : "bg-[#fef3c7] text-[#92400e]"
+                }`}>
                   {unreadTotal}
+                </span>
+              </button>
+
+              <button
+                onClick={() => { setViewMode("graph"); setSelectedBlogId(null); }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                  viewMode === "graph"
+                    ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                    : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <Orbit className={`w-4 h-4 ${viewMode === "graph" ? "text-[#b45309] animate-spin" : "text-[#b45309]"}`} style={{ animationDuration: "16s" }} />
+                  <span>Constellation</span>
+                </span>
+                <span className="text-[10px] font-mono text-[#b45309] font-bold">
+                  星座
                 </span>
               </button>
             </div>
@@ -963,6 +1170,7 @@ export default function ReaderDashboard() {
                     onClick={() => {
                       setSelectedBlogId(sub.id);
                       setActiveTab("all");
+                      setViewMode("timeline");
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-serif transition-colors group cursor-pointer ${
                       selectedBlogId === sub.id
@@ -1038,8 +1246,10 @@ export default function ReaderDashboard() {
           </button>
         )}
 
-        {/* 2. CENTER CONTENT (Timeline OR Anonymous Discovery View) */}
-        <main className="flex-1 flex flex-col overflow-y-auto bg-[#fbf8f2]">
+        {/* 2. CENTER FEED (Chronological Timeline, Constellation Portal, or Discovery View) */}
+        <main className={`flex-1 flex flex-col overflow-y-auto transition-colors duration-200 ${
+          isDark ? "bg-[#121110]" : "bg-[#fbf8f2]"
+        }`}>
           <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
             
             {activeTab === "discover" ? (
@@ -1050,13 +1260,19 @@ export default function ReaderDashboard() {
                 onToast={triggerToast}
               />
             ) : (
-              /* CHRONOLOGICAL TIMELINE VIEW */
+              /* TIMELINE OR GRAPH VIEW */
               <>
                 {/* Header Title & Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-[#e8dfd1] pb-5 gap-4">
+                <div className={`flex flex-col sm:flex-row sm:items-baseline justify-between border-b pb-5 gap-4 ${
+                  isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"
+                }`}>
                   <div>
-                    <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-[#1f1c19]">
-                      {selectedBlogId
+                    <h2 className={`font-serif text-3xl sm:text-4xl font-normal tracking-tight ${
+                      isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                    }`}>
+                      {viewMode === "graph"
+                        ? "Mystic Constellation."
+                        : selectedBlogId
                         ? subscriptions.find(s => s.id === selectedBlogId)?.name
                         : activeTab === "unread"
                         ? "Unread Collection"
@@ -1064,13 +1280,18 @@ export default function ReaderDashboard() {
                         ? "Saved Garden"
                         : "Personal Timeline."}
                     </h2>
-                    <p className="font-serif text-xs sm:text-sm text-[#786b59] mt-1.5">
-                      Latest writings from your curated library. Sorted purely by chronologic delivery.
+                    <p className={`font-serif text-xs sm:text-sm mt-1.5 ${
+                      isDark ? "text-[#a89d8f]" : "text-[#786b59]"
+                    }`}>
+                      {viewMode === "graph"
+                        ? "Decentralized Small Web co-subscription graph • PECFest Mystic Mikado Special Edition"
+                        : "Latest writings from your curated library. Sorted purely by chronologic delivery."}
                     </p>
                   </div>
 
+                  {/* Feed Actions */}
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <span className="text-xs font-mono text-[#8c7e6c]">
+                    <span className={`text-xs font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                       {filteredArticles.length} essays
                     </span>
 
@@ -1078,7 +1299,11 @@ export default function ReaderDashboard() {
                     <button
                       onClick={handleManualRefresh}
                       disabled={isRefreshing}
-                      className="text-xs font-serif font-medium px-3 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                      className={`text-xs font-serif font-medium px-3 py-1.5 rounded-xl border transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 ${
+                        isDark
+                          ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
+                          : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
+                      }`}
                       title="Sync and check feeds for fresh essays"
                     >
                       <RefreshCw className={`w-3 h-3 text-[#b45309] ${isRefreshing ? "animate-spin" : ""}`} />
@@ -1087,19 +1312,117 @@ export default function ReaderDashboard() {
 
                     <button
                       onClick={markAllRead}
-                      className="text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44] transition-colors shadow-xs"
+                      className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-colors shadow-xs ${
+                        isDark
+                          ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
+                          : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
+                      }`}
                     >
                       Mark all read
                     </button>
                   </div>
                 </div>
 
-                {/* Articles Feed */}
-                {filteredArticles.length === 0 ? (
+                {/* View Mode Rendering: Portal Gate or Articles Feed */}
+                {viewMode === "graph" ? (
+                  <div className="py-4 space-y-8 font-serif">
+                    {/* Warm Editorial Portal Gate Card */}
+                    <div className={`relative overflow-hidden rounded-3xl border shadow-md p-8 sm:p-12 space-y-6 transition-colors duration-200 ${
+                      isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e2d6c3] text-[#1f1c19]"
+                    }`}>
+                      {/* Subtle Japanese Watermark in Background */}
+                      <div className={`absolute -right-4 -bottom-6 select-none pointer-events-none text-[160px] font-serif font-black leading-none ${
+                        isDark ? "text-amber-500/5" : "text-[#e8dfd1]/35"
+                      }`}>
+                        星座
+                      </div>
+
+                      <div className="space-y-3 relative z-10">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full font-bold ${
+                            isDark
+                              ? "text-amber-400 bg-amber-950/60 border border-amber-800/60"
+                              : "text-[#92400e] bg-[#fef3c7] border border-[#fde68a]"
+                          }`}>
+                            PECFest 2026 • Mystic Mikado
+                          </span>
+                          <span className={`text-xs font-mono ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`}>神秘の星座探訪</span>
+                        </div>
+
+                        <h2 className={`text-3xl sm:text-4xl font-serif font-bold tracking-tight leading-tight ${
+                          isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                        }`}>
+                          Constellation Discovery Graph
+                        </h2>
+
+                        <p className={`text-sm leading-relaxed max-w-xl font-serif ${isDark ? "text-[#aba092]" : "text-[#574e44]"}`}>
+                          Explore independent small web writers clustered by organic reader gravity and co-subscription affinities — completely insulated from corporate surveillance algorithms.
+                        </p>
+                      </div>
+
+                      {/* Feature Pillars */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 relative z-10">
+                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
+                          isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
+                        }`}>
+                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
+                            <Orbit className="w-3.5 h-3.5" /> 探索 • Explore
+                          </div>
+                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
+                            2D physics celestial gravity clusters of independent small web blogs.
+                          </p>
+                        </div>
+
+                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
+                          isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
+                        }`}>
+                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
+                            <Sparkles className="w-3.5 h-3.5" /> 縁 • Affinity
+                          </div>
+                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
+                            Discover peer overlapping recommendations with verified affinity scores.
+                          </p>
+                        </div>
+
+                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
+                          isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
+                        }`}>
+                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
+                            <BookOpen className="w-3.5 h-3.5" /> 読書 • Discovery
+                          </div>
+                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
+                            1-click follow blogs or instantly slide open latest essays in reading view.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Clean Warm Amber Enter Button */}
+                      <div className="pt-4 relative z-10 flex flex-wrap items-center gap-4">
+                        <button
+                          onClick={() => setIsConstellationModalOpen(true)}
+                          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-[#b45309] hover:bg-[#92400e] text-white font-serif font-medium text-sm shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          <Orbit className="w-4 h-4 text-white" />
+                          <span>Enter Constellation Graph (Full Screen)</span>
+                        </button>
+
+                        <button
+                          onClick={() => setViewMode("timeline")}
+                          className={`text-xs font-serif transition-colors underline underline-offset-4 ${
+                            isDark ? "text-[#a89d8f] hover:text-[#fbbf24]" : "text-[#786b59] hover:text-[#b45309]"
+                          }`}
+                        >
+                          Return to Timeline
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+                ) : filteredArticles.length === 0 ? (
                   <div className="py-20 text-center space-y-3">
                     <BookOpen className="w-8 h-8 text-[#b45309]/40 mx-auto" />
-                    <h3 className="font-serif text-lg font-bold text-[#574e44]">No essays found</h3>
-                    <p className="font-serif text-xs text-[#8c7e6c]">
+                    <h3 className={`font-serif text-lg font-bold ${isDark ? "text-[#a89d8f]" : "text-[#574e44]"}`}>No essays found</h3>
+                    <p className={`font-serif text-xs ${isDark ? "text-[#786b59]" : "text-[#8c7e6c]"}`}>
                       {searchQuery ? "Try refining your search keyword." : "All caught up! Check back later or add new feeds."}
                     </p>
                   </div>
@@ -1109,7 +1432,11 @@ export default function ReaderDashboard() {
                       <motion.article
                         key={article.id}
                         onClick={() => handleSelectArticle(article)}
-                        className="group p-5 rounded-2xl border border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start"
+                        className={`group p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start ${
+                          isDark
+                            ? "border-[#2d2924] hover:border-[#fbbf24]/40 hover:shadow-lg bg-[#181614] text-[#f5efe6]"
+                            : "border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] text-[#1f1c19]"
+                        }`}
                       >
                         <div className="flex-1 space-y-2.5">
                           
@@ -1120,38 +1447,50 @@ export default function ReaderDashboard() {
                                 article.unread ? "bg-[#b45309]" : "bg-transparent"
                               }`}
                             />
-                            <span className="font-serif font-bold text-[#1f1c19] text-xs">
+                            <span className={`font-serif font-bold text-xs ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>
                               {article.blogName}
                             </span>
-                            <span className="text-[#d6caba]">•</span>
-                            <span className="font-mono text-[11px] text-[#8c7e6c]">
+                            <span className={isDark ? "text-[#423b32]" : "text-[#d6caba]"}>•</span>
+                            <span className={`font-mono text-[11px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                               {article.date}
                             </span>
-                            <span className="text-[#d6caba]">•</span>
-                            <span className="font-mono text-[11px] text-[#8c7e6c]">
+                            <span className={isDark ? "text-[#423b32]" : "text-[#d6caba]"}>•</span>
+                            <span className={`font-mono text-[11px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                               {article.readTime}
                             </span>
                           </div>
 
                           {/* Title & Excerpt */}
-                          <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1f1c19] group-hover:text-[#b45309] transition-colors leading-snug">
+                          <h3 className={`font-serif text-xl sm:text-2xl font-bold transition-colors leading-snug ${
+                            isDark
+                              ? "text-[#f5efe6] group-hover:text-[#fbbf24]"
+                              : "text-[#1f1c19] group-hover:text-[#b45309]"
+                          }`}>
                             {article.title}
                           </h3>
-                          <p className="font-serif text-xs sm:text-sm text-[#6b5f50] leading-relaxed line-clamp-2">
+                          <p className={`font-serif text-xs sm:text-sm line-clamp-2 leading-relaxed ${
+                            isDark ? "text-[#aba092]" : "text-[#6b5f50]"
+                          }`}>
                             {article.excerpt}
                           </p>
 
                           {/* Quick Bottom Actions */}
                           <div className="flex items-center justify-between pt-2">
-                            <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#f4ece1] text-[#78350f]">
+                            <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                              isDark ? "bg-[#25211c] text-amber-300" : "bg-[#f4ece1] text-[#78350f]"
+                            }`}>
                               {article.category}
                             </span>
 
                             <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                               <button
                                 onClick={e => toggleSave(article.id, e)}
-                                className={`p-1.5 rounded-lg hover:bg-[#f3ecdf] transition-colors ${
-                                  article.saved ? "text-[#b45309]" : "text-[#8c7e6c]"
+                                className={`p-1.5 rounded-lg transition-colors ${
+                                  isDark ? "hover:bg-[#25211c]" : "hover:bg-[#f3ecdf]"
+                                } ${
+                                  article.saved
+                                    ? isDark ? "text-[#fbbf24]" : "text-[#b45309]"
+                                    : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
                                 }`}
                                 title={article.saved ? "Remove bookmark" : "Save bookmark"}
                               >
@@ -1159,18 +1498,23 @@ export default function ReaderDashboard() {
                               </button>
                               <button
                                 onClick={e => markAsRead(article.id, e)}
-                                className="p-1.5 rounded-lg hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19] transition-colors"
+                                className={`p-1.5 rounded-lg transition-colors ${
+                                  isDark
+                                    ? "hover:bg-[#25211c] text-[#8c8172] hover:text-[#f5efe6]"
+                                    : "hover:bg-[#f3ecdf] text-[#8c7e6c] hover:text-[#1f1c19]"
+                                }`}
                                 title="Mark read"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
-
                         </div>
 
                         {/* Editorial Thumbnail */}
-                        <div className="w-full sm:w-40 h-28 rounded-xl overflow-hidden border border-[#e8dfd1] flex-shrink-0 bg-[#f4ece1] shadow-xs">
+                        <div className={`w-full sm:w-40 h-28 rounded-xl overflow-hidden border flex-shrink-0 shadow-xs ${
+                          isDark ? "border-[#2d2924] bg-[#1c1a17]" : "border-[#e8dfd1] bg-[#f4ece1]"
+                        }`}>
                           <img
                             src={article.image || getFallbackImage(article.id)}
                             alt={article.title}
@@ -1196,25 +1540,85 @@ export default function ReaderDashboard() {
           </div>
         </main>
 
+        {/* Floating Expand Button when Right Sidebar is Collapsed (Icon Only) */}
+        {isRightSidebarCollapsed && (
+          <button
+            onClick={() => setIsRightSidebarCollapsed(false)}
+            className={`hidden xl:flex absolute right-4 top-4 z-30 p-2 rounded-xl shadow-md transition-all items-center justify-center group ${
+              isDark
+                ? "bg-[#181614] border border-[#2d2924] text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#25211c]"
+                : "bg-[#fdfaf5] border border-[#e2d6c3] text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1]"
+            }`}
+            title="Expand telemetry sidebar"
+          >
+            <PanelRightOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform" />
+          </button>
+        )}
+
         {/* 3. RIGHT SIDEBAR (Telemetry & Reading Focus) */}
-        <aside className="w-80 border-l border-[#e8dfd1] bg-[#f7f2e8]/40 p-6 flex flex-col justify-between hidden xl:flex overflow-y-auto space-y-6">
-          
-          {/* Weekly Reading Chart */}
-          <div className="bg-[#fdfaf5] border border-[#e8dfd1] rounded-2xl p-5 shadow-xs space-y-4">
-            <h4 className="font-serif font-bold text-sm text-[#1f1c19]">Reading Telemetry</h4>
+        <aside
+          style={{ width: isRightSidebarCollapsed ? 0 : `${rightSidebarWidth}px` }}
+          className={`border-l flex flex-col justify-between hidden xl:flex relative select-none transition-all duration-300 ease-in-out ${
+            isDark ? "border-[#2d2924] bg-[#161413]" : "border-[#e8dfd1] bg-[#f7f2e8]/40"
+          } ${
+            isRightSidebarCollapsed
+              ? "!w-0 !p-0 !border-l-0 overflow-hidden opacity-0 pointer-events-none"
+              : "p-6 overflow-y-auto opacity-100 space-y-6"
+          }`}
+        >
+          {/* Draggable Resize Handle on Left Edge of Right Sidebar */}
+          <div
+            onMouseDown={() => {
+              isRightResizingRef.current = true;
+              document.body.style.cursor = "col-resize";
+              document.body.style.userSelect = "none";
+            }}
+            className="absolute top-0 left-0 w-2 h-full cursor-col-resize hover:bg-[#b45309]/30 transition-colors group z-20 flex items-center justify-center"
+            title="Drag to resize telemetry sidebar"
+          >
+            <div className={`w-0.5 h-8 rounded-full group-hover:bg-[#b45309] ${isDark ? "bg-[#38332c]" : "bg-[#d6caba]"}`} />
+          </div>
+
+          {/* Telemetry Header with Collapse Action */}
+          <div className="flex items-center justify-between pb-1 px-1">
+            <span className={`text-[10px] font-mono uppercase tracking-wider font-bold ${
+              isDark ? "text-[#a89d8f]" : "text-[#8c7e6c]"
+            }`}>
+              Reading Telemetry
+            </span>
+            <button
+              onClick={() => setIsRightSidebarCollapsed(true)}
+              className={`p-1 rounded-md transition-colors ${
+                isDark
+                  ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#25211c]"
+                  : "text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#ebdcc8]/50"
+              }`}
+              title="Collapse telemetry sidebar"
+            >
+              <PanelRightClose className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Weekly Reading Chart Card */}
+          <div className={`rounded-2xl p-5 shadow-xs space-y-4 border transition-colors ${
+            isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e8dfd1] text-[#1f1c19]"
+          }`}>
+            <h4 className={`font-serif font-bold text-sm ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Weekly Activity</h4>
             
-            <div className="grid grid-cols-3 text-center border-b border-[#e8dfd1] pb-3 font-serif">
+            <div className={`grid grid-cols-3 text-center border-b pb-3 font-serif ${
+              isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"
+            }`}>
               <div>
-                <div className="text-xl font-bold text-[#1f1c19]">12</div>
-                <div className="text-[10px] font-mono text-[#8c7e6c]">essays read</div>
+                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>12</div>
+                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>essays read</div>
               </div>
               <div>
-                <div className="text-xl font-bold text-[#1f1c19]">{savedTotal}</div>
-                <div className="text-[10px] font-mono text-[#8c7e6c]">saved</div>
+                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>{savedTotal}</div>
+                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>saved</div>
               </div>
               <div>
                 <div className="text-xl font-bold text-[#b45309]">3h 24m</div>
-                <div className="text-[10px] font-mono text-[#8c7e6c]">deep time</div>
+                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>deep time</div>
               </div>
             </div>
 
@@ -1234,10 +1638,16 @@ export default function ReaderDashboard() {
                     className={`w-4 rounded-t transition-all ${
                       bar.active
                         ? "bg-[#b45309] shadow-xs"
+                        : isDark
+                        ? "bg-[#2d2924] hover:bg-[#38332c]"
                         : "bg-[#e2d6c3] hover:bg-[#d6caba]"
                     } ${bar.h}`}
                   />
-                  <span className={`text-[9px] font-mono ${bar.active ? "font-bold text-[#b45309]" : "text-[#8c7e6c]"}`}>
+                  <span className={`text-[9px] font-mono ${
+                    bar.active
+                      ? "font-bold text-[#b45309]"
+                      : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
+                  }`}>
                     {bar.day}
                   </span>
                 </div>
@@ -1248,35 +1658,53 @@ export default function ReaderDashboard() {
           {/* Continue Reading Cards */}
           <div className="space-y-3">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-serif font-bold text-[#1f1c19]">Continue Reading</span>
-              <span className="font-mono text-[10px] text-[#8c7e6c]">In Progress</span>
+              <span className={`font-serif font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Continue Reading</span>
+              <span className={`font-mono text-[10px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>2 in progress</span>
             </div>
 
-            <div
-              onClick={() => handleSelectArticle(articles[0])}
-              className="p-3.5 rounded-xl border border-[#e8dfd1] bg-[#fdfaf5] hover:bg-[#f4ece1] transition-colors cursor-pointer space-y-1.5 shadow-xs"
-            >
-              <div className="flex justify-between items-center text-[10px] font-mono text-[#8c7e6c]">
-                <span>{articles[0]?.blogName}</span>
-                <span>65% done</span>
-              </div>
-              <h5 className="font-serif text-xs font-bold text-[#1f1c19] line-clamp-1">
-                {articles[0]?.title}
-              </h5>
-              <div className="w-full bg-[#ebdcc8] h-1 rounded-full overflow-hidden">
-                <div className="bg-[#b45309] h-full w-[65%]" />
-              </div>
+            <div className="space-y-2">
+              {articles.slice(0, 2).map(a => (
+                <div
+                  key={a.id}
+                  onClick={() => handleSelectArticle(a)}
+                  className={`p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all shadow-xs ${
+                    isDark
+                      ? "bg-[#181614] border-[#2d2924] hover:border-[#fbbf24]/50"
+                      : "bg-[#fdfaf5] border-[#e8dfd1] hover:border-[#b45309]/50"
+                  }`}
+                >
+                  <img
+                    src={a.image || getFallbackImage(a.id)}
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                    alt=""
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      const fallback = getFallbackImage(a.id);
+                      if (target.src !== fallback) {
+                        target.src = fallback;
+                      }
+                    }}
+                  />
+                  <div className="flex-1 truncate">
+                    <h5 className={`font-serif text-xs font-semibold truncate ${
+                      isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                    }`}>{a.title}</h5>
+                    <p className={`font-mono text-[10px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>{a.blogName} • 4 min left</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Discover Prompt Card */}
-          <div className="p-4 rounded-2xl bg-[#b45309]/10 border border-[#b45309]/20 space-y-2">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#b45309]" />
-              <h5 className="font-serif font-bold text-xs text-[#92400e]">Anonymous Recommendations</h5>
-            </div>
-            <p className="font-serif text-[11px] text-[#78350f] leading-snug">
-              Based on your subscriptions, our anonymous matrix has new independent essays ready for you.
+          {/* Quote Card */}
+          <div className={`p-4 rounded-2xl border space-y-2 shadow-xs ${
+            isDark ? "bg-[#181614] border-[#2d2924]" : "bg-[#fdfaf5] border-[#e8dfd1]"
+          }`}>
+            <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
+            <p className={`font-serif text-xs italic leading-relaxed ${
+              isDark ? "text-[#aba092]" : "text-[#574e44]"
+            }`}>
+              "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
             </p>
             <button
               onClick={() => setActiveTab("discover")}
@@ -1411,7 +1839,7 @@ export default function ReaderDashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setSelectedArticle(null)}
+            onClick={handleCloseReadingDrawer}
             className="fixed inset-0 bg-black/40 backdrop-blur-xs flex justify-end z-50 cursor-pointer"
           >
             <motion.div
@@ -1420,20 +1848,69 @@ export default function ReaderDashboard() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="w-full max-w-2xl bg-[#fbf8f2] h-full shadow-2xl flex flex-col justify-between border-l border-[#e8dfd1] cursor-default"
+              className={`h-full shadow-2xl flex flex-col justify-between border-l cursor-default transition-all duration-300 ${
+                isReaderFullscreen ? "w-full max-w-full" : "w-full max-w-2xl"
+              } ${isDark ? "bg-[#121110] border-[#2d2924] text-[#f5efe6]" : "bg-[#fbf8f2] border-[#e8dfd1] text-[#1f1c19]"}`}
             >
               
               {/* Drawer Top Header Controls */}
-              <div className="h-16 border-b border-[#e8dfd1] px-6 flex items-center justify-between bg-[#f4ece1]/80">
+              <div className={`h-16 border-b px-6 flex items-center justify-between transition-colors duration-200 ${
+                isDark ? "border-[#2d2924] bg-[#161412]/95" : "border-[#e8dfd1] bg-[#f4ece1]/80"
+              }`}>
                 <div className="flex items-center gap-2">
                   <Feather className="w-3.5 h-3.5 text-[#b45309]" />
-                  <span className="font-serif font-bold text-xs text-[#1f1c19]">Reading View</span>
+                  <span className={`font-serif font-bold text-xs ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Reading View</span>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* AI Digest Button (On-Device Private NLP) */}
+                  <button
+                    onClick={handleToggleAiDigest}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-serif transition-colors ${
+                      isAiDigestOpen
+                        ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
+                        : isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] text-[#aba092] hover:bg-[#282420]"
+                        : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
+                    }`}
+                    title="AI Digest"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isAiDigestOpen ? "text-amber-200" : "text-[#b45309]"}`} />
+                    <span>{isAiDigestOpen ? "Digest" : "AI Digest"}</span>
+                  </button>
+
+                  {/* Listen Mode Toggle Button */}
+                  <button
+                    onClick={() => {
+                      const nextState = !isListenModeActive;
+                      setIsListenModeActive(nextState);
+                      if (!nextState && typeof window !== "undefined" && "speechSynthesis" in window) {
+                        window.speechSynthesis.cancel();
+                        setIsSpeechPlaying(false);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-serif transition-colors ${
+                      isListenModeActive
+                        ? "bg-[#b45309] text-white border-[#b45309] shadow-xs font-medium"
+                        : isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] text-[#aba092] hover:bg-[#282420]"
+                        : "bg-white border-[#e2d6c3] text-[#574e44] hover:bg-[#f3ecdf]"
+                    }`}
+                    title="Listen to essay aloud (TTS Audio)"
+                  >
+                    <Headphones className="w-3.5 h-3.5" />
+                    <span>{isListenModeActive ? "Listening" : "Listen"}</span>
+                  </button>
+
+                  <div className={`h-4 w-px mx-0.5 hidden sm:block ${isDark ? "bg-[#2d2924]" : "bg-[#d6caba]"}`} />
+
                   <button
                     onClick={() => setFontFamily(f => (f === "serif" ? "sans" : "serif"))}
-                    className="p-1.5 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono hover:bg-[#f3ecdf] text-[#574e44]"
+                    className={`p-1.5 rounded-lg border text-xs font-mono transition-colors ${
+                      isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] hover:bg-[#282420] text-[#aba092]"
+                        : "bg-white border-[#e2d6c3] hover:bg-[#f3ecdf] text-[#574e44]"
+                    }`}
                     title="Toggle Serif/Sans font"
                   >
                     <Type className="w-4 h-4" />
@@ -1443,77 +1920,216 @@ export default function ReaderDashboard() {
                     onClick={() =>
                       setFontSize(s => (s === "normal" ? "large" : s === "large" ? "xlarge" : "normal"))
                     }
-                    className="px-2 py-1 rounded-lg border border-[#e2d6c3] bg-white text-xs font-mono font-bold hover:bg-[#f3ecdf] text-[#574e44]"
+                    className={`px-2 py-1 rounded-lg border text-xs font-mono font-bold transition-colors ${
+                      isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] hover:bg-[#282420] text-[#aba092]"
+                        : "bg-white border-[#e2d6c3] hover:bg-[#f3ecdf] text-[#574e44]"
+                    }`}
                     title="Change font size"
                   >
                     {fontSize === "normal" ? "A" : fontSize === "large" ? "A+" : "A++"}
                   </button>
 
+                  {/* Fullscreen Reading Mode Toggle */}
                   <button
-                    onClick={() => setSelectedArticle(null)}
-                    className="w-8 h-8 rounded-full bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f] flex items-center justify-center text-xs font-bold transition-colors ml-2"
+                    onClick={() => setIsReaderFullscreen(f => !f)}
+                    className={`p-1.5 rounded-lg border text-xs font-mono transition-colors ${
+                      isDark
+                        ? "bg-[#1f1c18] border-[#2d2924] hover:bg-[#282420] text-[#aba092]"
+                        : "bg-white border-[#e2d6c3] hover:bg-[#f3ecdf] text-[#574e44]"
+                    }`}
+                    title={isReaderFullscreen ? "Exit full screen view" : "Expand to full screen"}
+                  >
+                    {isReaderFullscreen ? (
+                      <Minimize2 className="w-4 h-4 text-[#fbbf24]" />
+                    ) : (
+                      <Maximize2 className="w-4 h-4" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleCloseReadingDrawer}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ml-1 ${
+                      isDark
+                        ? "bg-[#25211c] hover:bg-[#332c25] text-[#fbbf24]"
+                        : "bg-[#ebdcc8] hover:bg-[#debfa0] text-[#78350f]"
+                    }`}
+                    title="Close reading view"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Reader Body Content */}
-              <div className="flex-1 overflow-y-auto px-8 sm:px-12 py-10 space-y-6">
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">
-                    {selectedArticle.category}
-                  </span>
-                  <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#1f1c19] mt-2.5 leading-tight">
-                    {selectedArticle.title}
-                  </h1>
-                  <p className="font-mono text-xs text-[#8c7e6c] mt-3">
-                    By <strong className="text-[#1f1c19]">{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
-                  </p>
-                </div>
-
-                {/* Readability Loading Indicator */}
-                {isExtractingArticle && (
-                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#fef3c7] text-[#92400e] text-xs font-mono border border-[#fde68a]">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#b45309]" />
-                    <span>Extracting clean full text via Mozilla Readability & DOMPurify...</span>
-                  </div>
+              {/* Expandable Listen Mode Audio Bar */}
+              <AnimatePresence>
+                {isListenModeActive && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className={`overflow-hidden border-b ${
+                      isDark ? "border-[#2d2924] bg-[#161412]" : "border-[#e8dfd1] bg-[#f9f5ed]"
+                    }`}
+                  >
+                    <div className={isReaderFullscreen ? "max-w-3xl mx-auto px-4" : ""}>
+                      <ListenModePlayer
+                        paragraphs={currentArticleParagraphs}
+                        activeParagraphIndex={activeSpeechParagraph}
+                        onParagraphChange={setActiveSpeechParagraph}
+                        onPlayingChange={setIsSpeechPlaying}
+                        onClose={() => {
+                          setIsListenModeActive(false);
+                          setIsSpeechPlaying(false);
+                        }}
+                      />
+                    </div>
+                  </motion.div>
                 )}
+              </AnimatePresence>
 
-                <hr className="border-[#e8dfd1]" />
+              {/* Reader Body Content */}
+              <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-10">
+                <div className={`space-y-6 ${isReaderFullscreen ? "max-w-3xl mx-auto w-full transition-all duration-300" : ""}`}>
+                  <div>
+                    <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">
+                      {selectedArticle.category}
+                    </span>
+                    <h1 className={`font-serif text-3xl sm:text-4xl font-bold mt-2.5 leading-tight ${
+                      isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+                    }`}>
+                      {selectedArticle.title}
+                    </h1>
+                    <p className={`font-mono text-xs mt-3 ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
+                      By <strong className={isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}>{selectedArticle.blogName}</strong> • {selectedArticle.readTime} • {selectedArticle.date}
+                    </p>
+                  </div>
 
-                {/* Article Prose */}
-                <div
-                  className={`leading-relaxed text-[#2b2621] space-y-5 ${
-                    fontFamily === "serif" ? "font-serif" : "font-sans"
-                  } ${
-                    fontSize === "normal"
-                      ? "text-base"
-                      : fontSize === "large"
-                      ? "text-lg"
-                      : "text-xl leading-loose"
-                  }`}
-                  dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
-                />
+                  {/* On-Device AI Executive Digest Card */}
+                  <AnimatePresence>
+                    {isAiDigestOpen && cachedDigest && (
+                      <AiDigestCard
+                        digest={cachedDigest}
+                        articleTitle={selectedArticle.title}
+                        onClose={() => setIsAiDigestOpen(false)}
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  {/* Readability Loading Indicator */}
+                  {isExtractingArticle && (
+                    <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#fef3c7] text-[#92400e] text-xs font-mono border border-[#fde68a]">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#b45309]" />
+                      <span>Extracting clean full text via Mozilla Readability & DOMPurify...</span>
+                    </div>
+                  )}
+
+                  <hr className={isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"} />
+
+                  {/* Article Prose with Active Speech Highlighting */}
+                  {isListenModeActive ? (
+                    <div
+                      className={`leading-relaxed space-y-4 ${
+                        isDark ? "text-[#e4dcd1]" : "text-[#2b2621]"
+                      } ${
+                        fontFamily === "serif" ? "font-serif" : "font-sans"
+                      } ${
+                        fontSize === "normal"
+                          ? "text-base"
+                          : fontSize === "large"
+                          ? "text-lg"
+                          : "text-xl leading-loose"
+                      }`}
+                    >
+                      {currentArticleParagraphs.map((para, pIdx) => (
+                        <div
+                          key={pIdx}
+                          onClick={() => setActiveSpeechParagraph(pIdx)}
+                          className={`transition-all duration-300 rounded-xl p-3.5 -mx-3.5 cursor-pointer relative ${
+                            activeSpeechParagraph === pIdx
+                              ? isDark
+                                ? "bg-amber-950/40 border-l-4 border-amber-500 shadow-xs text-amber-200 font-medium"
+                                : "bg-[#fef3c7] border-l-4 border-[#b45309] shadow-xs text-[#1f1c19] font-medium"
+                              : isDark
+                              ? "hover:bg-[#1a1714] text-[#cac0b3]"
+                              : "hover:bg-[#f4ece1]/60 text-[#423b33]"
+                          }`}
+                          title="Click to listen from this paragraph"
+                        >
+                          {activeSpeechParagraph === pIdx && isSpeechPlaying && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#b45309] font-bold uppercase tracking-wider mb-1 block">
+                              <Headphones className="w-3 h-3 animate-pulse" /> Speaking now
+                            </span>
+                          )}
+                          <p>{para}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className={`leading-relaxed space-y-5 ${
+                        isDark ? "text-[#e4dcd1]" : "text-[#2b2621]"
+                      } ${
+                        fontFamily === "serif" ? "font-serif" : "font-sans"
+                      } ${
+                        fontSize === "normal"
+                          ? "text-base"
+                          : fontSize === "large"
+                          ? "text-lg"
+                          : "text-xl leading-loose"
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+                    />
+                  )}
+                </div>
               </div>
 
               {/* Drawer Bottom Bar */}
-              <div className="h-14 border-t border-[#e8dfd1] px-6 flex items-center justify-between text-xs font-serif text-[#786b59] bg-[#f4ece1]/80">
-                <span className="font-mono text-[11px] text-[#8c7e6c]">
-                  Saved to your local offline library
-                </span>
-                <a
-                  href={selectedArticle.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 text-[#b45309] font-medium hover:underline"
-                >
-                  <span>Open Original Source</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+              <div className={`h-14 border-t px-6 flex items-center justify-between text-xs font-serif transition-colors duration-200 ${
+                isDark ? "border-[#2d2924] bg-[#161412]/95 text-[#a89d8f]" : "border-[#e8dfd1] bg-[#f4ece1]/80 text-[#786b59]"
+              }`}>
+                <div className={`w-full flex items-center justify-between ${isReaderFullscreen ? "max-w-3xl mx-auto" : ""}`}>
+                  <span className={`font-mono text-[11px] ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
+                    Saved to your local offline library
+                  </span>
+                  <a
+                    href={selectedArticle.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`flex items-center gap-1.5 font-medium hover:underline ${
+                      isDark ? "text-[#fbbf24]" : "text-[#b45309]"
+                    }`}
+                  >
+                    <span>Open Original Source</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
               </div>
 
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Full-Screen Windowed Editorial Constellation Modal */}
+      <AnimatePresence>
+        {isConstellationModalOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="fixed inset-0 z-50 bg-[#fbf8f2] flex flex-col"
+          >
+            <ConstellationGraph
+              isFullScreenModal={true}
+              onSubscribeFeed={handleGraphSubscribe}
+              onOpenArticle={(title, author) => {
+                setIsConstellationModalOpen(false);
+                handleGraphOpenArticle(title, author);
+              }}
+              onClose={() => setIsConstellationModalOpen(false)}
+            />
           </motion.div>
         )}
       </AnimatePresence>
