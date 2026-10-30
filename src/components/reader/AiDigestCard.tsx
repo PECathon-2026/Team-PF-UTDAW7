@@ -9,6 +9,7 @@ import {
   X
 } from "lucide-react";
 import { ArticleDigest } from "@/lib/summarizer";
+import BlogCardSpotlight from "./BlogCardSpotlight";
 
 interface AiDigestCardProps {
   digest: ArticleDigest;
@@ -47,7 +48,9 @@ export default function AiDigestCard({
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="rounded-2xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md p-5 space-y-4 font-serif text-[#1f1c19] relative overflow-hidden"
     >
-      {/* Top Header: Simple and Clean */}
+      <BlogCardSpotlight isDark={false} size={90} />
+      <div className="relative z-10 space-y-4">
+        {/* Top Header: Simple and Clean */}
       <div className="flex items-center justify-between pb-3 border-b border-[#e8dfd1]">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-[#b45309] text-white flex items-center justify-center shadow-2xs">
@@ -113,6 +116,7 @@ export default function AiDigestCard({
             </li>
           ))}
         </ul>
+      </div>
       </div>
 
     </motion.div>

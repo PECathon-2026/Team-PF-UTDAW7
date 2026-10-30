@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import BlogCardSpotlight from "@/components/reader/BlogCardSpotlight";
 import {
   Orbit,
   Sparkles,
@@ -913,8 +914,10 @@ export default function ConstellationGraph({
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.95 }}
-            className="absolute bottom-5 right-5 z-40 w-88 max-w-[calc(100vw-2.5rem)] bg-[#fdfaf5] border border-[#e2d6c3] rounded-3xl shadow-2xl p-6 space-y-4 backdrop-blur-md text-[#1f1c19] font-serif"
+            className="absolute bottom-5 right-5 z-40 w-88 max-w-[calc(100vw-2.5rem)] bg-[#fdfaf5] border border-[#e2d6c3] rounded-3xl shadow-2xl p-6 space-y-4 backdrop-blur-md text-[#1f1c19] font-serif relative overflow-hidden"
           >
+            <BlogCardSpotlight isDark={isDark} size={100} />
+            <div className="relative z-10 space-y-4">
             {/* Popover Header */}
             <div className="flex items-start justify-between">
               <div>
@@ -989,6 +992,7 @@ export default function ConstellationGraph({
                   <BookOpen className="w-4 h-4 text-[#b45309]" />
                 </button>
               )}
+            </div>
             </div>
           </motion.div>
         )}

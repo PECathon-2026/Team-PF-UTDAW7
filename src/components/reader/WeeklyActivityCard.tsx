@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Flame, CalendarCheck, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { ReadingActivityEvent } from "@/lib/client/idb";
 import { calculateWeeklyStatistics, WeeklyStatistics } from "@/lib/client/readingActivity";
+import BlogCardSpotlight from "./BlogCardSpotlight";
 
 interface WeeklyActivityCardProps {
   activities: ReadingActivityEvent[];
@@ -64,12 +65,14 @@ export default function WeeklyActivityCard({
 
   return (
     <div
-      className={`rounded-2xl p-5 shadow-xs space-y-4 border transition-colors select-none ${
+      className={`rounded-2xl p-5 shadow-xs space-y-4 border transition-colors select-none relative overflow-hidden ${
         isDark
           ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]"
           : "bg-[#fdfaf5] border-[#e8dfd1] text-[#1f1c19]"
       } ${className}`}
     >
+      <BlogCardSpotlight isDark={isDark} />
+      <div className="relative z-10 space-y-4">
       {/* Header: Title and Week Navigation */}
       <div className="flex items-center justify-between">
         <div>
@@ -237,6 +240,7 @@ export default function WeeklyActivityCard({
           <span>Vs prior week:</span>
         </span>
         <span className="font-semibold">{currentStats.comparisonText}</span>
+      </div>
       </div>
     </div>
   );

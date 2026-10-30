@@ -71,6 +71,7 @@ import {
   ReadingActivityEvent,
 } from "@/lib/client/idb";
 import WeeklyActivityCard from "@/components/reader/WeeklyActivityCard";
+import BlogCardSpotlight from "@/components/reader/BlogCardSpotlight";
 import { refreshAllFeeds } from "@/lib/client/feedSync";
 import {
   exportToOpml,
@@ -975,8 +976,10 @@ export default function ReaderDashboard() {
                   initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                  className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-xl p-3 z-50 space-y-2"
+                  className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-xl p-3 z-50 space-y-2 relative overflow-hidden"
                 >
+                  <BlogCardSpotlight isDark={false} size={100} />
+                  <div className="relative z-10 space-y-2">
                   <div className="flex items-center justify-between px-2 py-1 border-b border-[#e8dfd1]">
                     <span className="text-xs font-serif font-bold text-[#1f1c19]">Saved Essays</span>
                     <button
@@ -1017,6 +1020,7 @@ export default function ReaderDashboard() {
                       ))}
                     </div>
                   )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1264,14 +1268,17 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Zero Surveillance Philosophy Card */}
-          <div className="p-3.5 rounded-2xl bg-[#f2e9db]/70 border border-[#e2d6c3] space-y-2 mt-4">
-            <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#78350f]">
-              <ShieldCheck className="w-4 h-4 text-[#b45309]" />
-              <span>Zero Surveillance</span>
+          <div className="p-3.5 rounded-2xl bg-[#f2e9db]/70 border border-[#e2d6c3] space-y-2 mt-4 relative overflow-hidden">
+            <BlogCardSpotlight isDark={isDark} />
+            <div className="relative z-10 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#78350f]">
+                <ShieldCheck className="w-4 h-4 text-[#b45309]" />
+                <span>Zero Surveillance</span>
+              </div>
+              <p className="text-[11px] font-serif italic text-[#786b59] leading-snug">
+                "No corporate tracking. Your reading sanctuary remains completely offline and private."
+              </p>
             </div>
-            <p className="text-[11px] font-serif italic text-[#786b59] leading-snug">
-              "No corporate tracking. Your reading sanctuary remains completely offline and private."
-            </p>
           </div>
 
           {/* Draggable Resize Handle */}
@@ -1385,6 +1392,7 @@ export default function ReaderDashboard() {
                     <div className={`relative overflow-hidden rounded-3xl border shadow-md p-8 sm:p-12 space-y-6 transition-colors duration-200 ${
                       isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e2d6c3] text-[#1f1c19]"
                     }`}>
+                      <BlogCardSpotlight isDark={isDark} size={130} />
                       {/* Subtle Japanese Watermark in Background */}
                       <div className={`absolute -right-4 -bottom-6 select-none pointer-events-none text-[160px] font-serif font-black leading-none ${
                         isDark ? "text-amber-500/5" : "text-[#e8dfd1]/35"
@@ -1417,37 +1425,46 @@ export default function ReaderDashboard() {
 
                       {/* Feature Pillars */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 relative z-10">
-                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
+                        <div className={`p-4 rounded-2xl border space-y-1.5 relative overflow-hidden ${
                           isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
                         }`}>
-                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
-                            <Orbit className="w-3.5 h-3.5" /> 探索 • Explore
+                          <BlogCardSpotlight isDark={isDark} size={84} />
+                          <div className="relative z-10 space-y-1.5">
+                            <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
+                              <Orbit className="w-3.5 h-3.5" /> 探索 • Explore
+                            </div>
+                            <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
+                              2D physics celestial gravity clusters of independent small web blogs.
+                            </p>
                           </div>
-                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
-                            2D physics celestial gravity clusters of independent small web blogs.
-                          </p>
                         </div>
 
-                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
+                        <div className={`p-4 rounded-2xl border space-y-1.5 relative overflow-hidden ${
                           isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
                         }`}>
-                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
-                            <Sparkles className="w-3.5 h-3.5" /> 縁 • Affinity
+                          <BlogCardSpotlight isDark={isDark} size={84} />
+                          <div className="relative z-10 space-y-1.5">
+                            <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
+                              <Sparkles className="w-3.5 h-3.5" /> 縁 • Affinity
+                            </div>
+                            <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
+                              Discover peer overlapping recommendations with verified affinity scores.
+                            </p>
                           </div>
-                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
-                            Discover peer overlapping recommendations with verified affinity scores.
-                          </p>
                         </div>
 
-                        <div className={`p-4 rounded-2xl border space-y-1.5 ${
+                        <div className={`p-4 rounded-2xl border space-y-1.5 relative overflow-hidden ${
                           isDark ? "bg-[#221f1c] border-[#38332c]" : "bg-[#f4ece1]/80 border-[#e2d6c3]"
                         }`}>
-                          <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
-                            <BookOpen className="w-3.5 h-3.5" /> 読書 • Discovery
+                          <BlogCardSpotlight isDark={isDark} size={84} />
+                          <div className="relative z-10 space-y-1.5">
+                            <div className="text-xs font-mono text-[#b45309] flex items-center gap-1.5 font-bold">
+                              <BookOpen className="w-3.5 h-3.5" /> 読書 • Discovery
+                            </div>
+                            <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
+                              1-click follow blogs or instantly slide open latest essays in reading view.
+                            </p>
                           </div>
-                          <p className={`text-[11px] leading-snug ${isDark ? "text-[#aba092]" : "text-[#786b59]"}`}>
-                            1-click follow blogs or instantly slide open latest essays in reading view.
-                          </p>
                         </div>
                       </div>
 
@@ -1487,13 +1504,16 @@ export default function ReaderDashboard() {
                       <motion.article
                         key={article.id}
                         onClick={() => handleSelectArticle(article)}
-                        className={`group p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start ${
+                        className={`group p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start relative overflow-hidden ${
                           isDark
                             ? "border-[#2d2924] hover:border-[#fbbf24]/40 hover:shadow-lg bg-[#181614] text-[#f5efe6]"
                             : "border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] text-[#1f1c19]"
                         }`}
                       >
-                        <div className="flex-1 space-y-2.5">
+                        {/* Interactive Cursor Spotlight Glow (Warm Orangish Circle) */}
+                        <BlogCardSpotlight isDark={isDark} />
+
+                        <div className="flex-1 space-y-2.5 relative z-10">
                           
                           {/* Metadata Tag */}
                           <div className="flex items-center gap-2 text-xs">
@@ -1569,7 +1589,7 @@ export default function ReaderDashboard() {
                         </div>
 
                         {/* Editorial Thumbnail */}
-                        <div className={`w-full sm:w-40 h-28 rounded-xl overflow-hidden border flex-shrink-0 shadow-xs ${
+                        <div className={`w-full sm:w-40 h-28 rounded-xl overflow-hidden border flex-shrink-0 shadow-xs relative z-10 ${
                           isDark ? "border-[#2d2924] bg-[#1c1a17]" : "border-[#e8dfd1] bg-[#f4ece1]"
                         }`}>
                           <img
@@ -1675,15 +1695,16 @@ export default function ReaderDashboard() {
                 <div
                   key={a.id}
                   onClick={() => handleSelectArticle(a)}
-                  className={`p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all shadow-xs ${
+                  className={`p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all shadow-xs relative overflow-hidden ${
                     isDark
                       ? "bg-[#181614] border-[#2d2924] hover:border-[#fbbf24]/50"
                       : "bg-[#fdfaf5] border-[#e8dfd1] hover:border-[#b45309]/50"
                   }`}
                 >
+                  <BlogCardSpotlight isDark={isDark} />
                   <img
                     src={a.image || getFallbackImage(a.id)}
-                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0 relative z-10"
                     alt=""
                     onError={(e) => {
                       const target = e.currentTarget;
@@ -1693,7 +1714,7 @@ export default function ReaderDashboard() {
                       }
                     }}
                   />
-                  <div className="flex-1 truncate">
+                  <div className="flex-1 truncate relative z-10">
                     <h5 className={`font-serif text-xs font-semibold truncate ${
                       isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
                     }`}>{a.title}</h5>
@@ -1705,22 +1726,25 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Quote Card */}
-          <div className={`p-4 rounded-2xl border space-y-2 shadow-xs ${
+          <div className={`p-4 rounded-2xl border space-y-2 shadow-xs relative overflow-hidden ${
             isDark ? "bg-[#181614] border-[#2d2924]" : "bg-[#fdfaf5] border-[#e8dfd1]"
           }`}>
-            <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
-            <p className={`font-serif text-xs italic leading-relaxed ${
-              isDark ? "text-[#aba092]" : "text-[#574e44]"
-            }`}>
-              "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
-            </p>
-            <button
-              onClick={() => setActiveTab("discover")}
-              className="text-xs font-serif font-bold text-[#b45309] hover:underline flex items-center gap-1 pt-1"
-            >
-              <span>Explore Discovery Hub</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <BlogCardSpotlight isDark={isDark} />
+            <div className="relative z-10 space-y-2">
+              <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
+              <p className={`font-serif text-xs italic leading-relaxed ${
+                isDark ? "text-[#aba092]" : "text-[#574e44]"
+              }`}>
+                "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
+              </p>
+              <button
+                onClick={() => setActiveTab("discover")}
+                className="text-xs font-serif font-bold text-[#b45309] hover:underline flex items-center gap-1 pt-1"
+              >
+                <span>Explore Discovery Hub</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
         </aside>
@@ -1742,8 +1766,10 @@ export default function ReaderDashboard() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-2xl p-6 space-y-5 cursor-default"
+              className="w-full max-w-md bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-2xl p-6 space-y-5 cursor-default relative overflow-hidden"
             >
+              <BlogCardSpotlight isDark={false} size={110} />
+              <div className="relative z-10 space-y-5">
               {/* Modal Header */}
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
@@ -1835,6 +1861,7 @@ export default function ReaderDashboard() {
                   </button>
                 </div>
               </form>
+              </div>
             </motion.div>
           </motion.div>
         )}

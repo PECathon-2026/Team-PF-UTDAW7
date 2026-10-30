@@ -19,6 +19,7 @@ import {
   setOptInDiscovery,
   syncAnonymousDiscoveryIfOptedIn,
 } from "@/lib/client/storage";
+import BlogCardSpotlight from "./BlogCardSpotlight";
 
 interface Recommendation {
   feed: {
@@ -185,8 +186,9 @@ export default function DiscoveryView({
       </div>
 
       {/* 2. Privacy & Opt-in Boundary Card */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[#fffdfa] border border-[#e8dfd1] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#fffdfa] border border-[#e8dfd1] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+        <BlogCardSpotlight isDark={false} size={110} />
+        <div className="flex items-start gap-3 relative z-10">
           <div className="p-2 rounded-xl bg-[#f2e9db] text-[#b45309] mt-0.5">
             <ShieldCheck className="w-5 h-5" />
           </div>
@@ -203,7 +205,7 @@ export default function DiscoveryView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-end md:self-center">
+        <div className="flex items-center gap-3 self-end md:self-center relative z-10">
           <span className="text-xs font-mono font-medium text-[#574e44]">
             {optIn ? "Opted In" : "Disabled (Private)"}
           </span>
@@ -259,9 +261,10 @@ export default function DiscoveryView({
                 return (
                   <div
                     key={rec.feed.id}
-                    className="p-5 rounded-2xl border border-[#e8dfd1] bg-[#fdfaf5] hover:border-[#b45309]/40 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                    className="p-5 rounded-2xl border border-[#e8dfd1] bg-[#fdfaf5] hover:border-[#b45309]/40 hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative overflow-hidden"
                   >
-                    <div className="space-y-2.5">
+                    <BlogCardSpotlight isDark={false} />
+                    <div className="space-y-2.5 relative z-10">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#f4ece1] text-[#78350f] font-bold">
                           {rec.feed.category}
@@ -286,7 +289,7 @@ export default function DiscoveryView({
                       </p>
                     </div>
 
-                    <div className="pt-3 border-t border-[#f0e6d6] flex items-center justify-between gap-2">
+                    <div className="pt-3 border-t border-[#f0e6d6] flex items-center justify-between gap-2 relative z-10">
                       {/* Transparent Reason Tag (Task D / Bonus Quest) */}
                       <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#92400e] bg-[#fef3c7] px-2.5 py-1 rounded-lg border border-[#fde68a] truncate">
                         <Sparkles className="w-3 h-3 text-[#b45309] flex-shrink-0" />
@@ -345,6 +348,7 @@ export default function DiscoveryView({
           </div>
 
           <div className="p-4 sm:p-6 rounded-2xl border border-[#e8dfd1] bg-[#fffdfa] shadow-sm relative overflow-hidden">
+            <BlogCardSpotlight isDark={false} size={120} />
             {graphData ? (
               <svg
                 viewBox="0 0 800 480"
