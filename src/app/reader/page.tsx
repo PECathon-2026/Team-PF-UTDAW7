@@ -35,7 +35,8 @@ import {
   Moon,
   Headphones,
   Maximize2,
-  Minimize2
+  Minimize2,
+  AlertCircle
 } from "lucide-react";
 import ConstellationGraph from "@/components/graph/ConstellationGraph";
 import ListenModePlayer from "@/components/reader/ListenModePlayer";
@@ -279,7 +280,8 @@ export default function ReaderDashboard() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [fontSize, setFontSize] = useState<"normal" | "large" | "xlarge">("normal");
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
-  const [notification, setNotification] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ message: string; badge?: string; type?: "info" | "success" | "loading" | "error" } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Loading & Sync States
   const [isAddingFeed, setIsAddingFeed] = useState(false);
@@ -437,9 +439,41 @@ export default function ReaderDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const triggerToast = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3500);
+  const triggerToast = (msg: string, customType?: "info" | "success" | "loading" | "error", customBadge?: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+
+    let type: "info" | "success" | "loading" | "error" = customType || "success";
+    let badge = customBadge;
+
+    const lower = msg.toLowerCase();
+    if (lower.includes("checking") || lower.includes("syncing") || lower.includes("autodiscover") || lower.includes("importing")) {
+      type = "loading";
+      badge = badge || "Syncing";
+    } else if (lower.includes("error") || lower.includes("failed")) {
+      type = "error";
+      badge = badge || "Notice";
+    } else if (lower.includes("up to date")) {
+      type = "success";
+      badge = badge || "Synced";
+    } else if (lower.includes("unread")) {
+      type = "info";
+      badge = badge || "Unread";
+    } else if (lower.includes("marked as read") || lower.includes("100% read")) {
+      type = "success";
+      badge = badge || "Read";
+    } else if (lower.includes("saved")) {
+      type = "success";
+      badge = badge || "Saved";
+    } else if (lower.includes("removed") || lower.includes("unsubscribed")) {
+      type = "info";
+      badge = badge || "Removed";
+    } else if (lower.includes("fresh essays")) {
+      type = "success";
+      badge = badge || "Updated";
+    }
+
+    setNotification({ message: msg, type, badge });
+    toastTimeoutRef.current = setTimeout(() => setNotification(null), 3200);
   };
 
   // Persistent User Actions
@@ -894,17 +928,99 @@ export default function ReaderDashboard() {
       <AnimatePresence>
         {notification && (
           <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 text-xs font-mono px-4 py-2 rounded-full shadow-lg border flex items-center gap-2 ${
+            initial={{ opacity: 0, y: -18, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -18, scale: 0.95 }}
+            transition={{ type: "spring", damping: 24, stiffness: 380 }}
+            className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-3 backdrop-blur-md select-none transition-colors duration-200 ${
               isDark
-                ? "bg-[#221f1c] text-[#f5efe6] border-[#3d372f]"
-                : "bg-[#1f1c19] text-[#fbf8f2] border-[#38332c]"
+                ? "bg-[#1c1916]/98 border-[#3d362e] text-[#f5efe6] shadow-black/60"
+                : "bg-[#fdfbf7]/98 border-[#d6caba] text-[#1f1c19] shadow-amber-950/10"
             }`}
           >
-            <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
-            <span>{notification}</span>
+            {/* Contextual Leading Icon */}
+            {notification.type === "loading" ? (
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                isDark ? "bg-amber-500/15" : "bg-amber-500/10"
+              }`}>
+                <RefreshCw className={`w-3.5 h-3.5 ${isDark ? "text-amber-400" : "text-[#b45309]"} animate-spin`} />
+              </div>
+            ) : notification.type === "error" ? (
+              <div className="w-6 h-6 rounded-lg bg-rose-500/15 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+              </div>
+            ) : notification.badge === "Saved" ? (
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                isDark ? "bg-amber-500/15" : "bg-amber-500/10"
+              }`}>
+                <Bookmark className={`w-3.5 h-3.5 ${isDark ? "text-amber-400" : "text-[#b45309]"} fill-current`} />
+              </div>
+            ) : notification.badge === "Removed" ? (
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                isDark ? "bg-stone-500/15" : "bg-stone-200/60"
+              }`}>
+                <Bookmark className={`w-3.5 h-3.5 ${isDark ? "text-[#a89d8f]" : "text-[#786b59]"}`} />
+              </div>
+            ) : notification.badge === "Unread" ? (
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                isDark ? "bg-amber-500/15" : "bg-amber-500/10"
+              }`}>
+                <Clock className={`w-3.5 h-3.5 ${isDark ? "text-amber-400" : "text-[#b45309]"}`} />
+              </div>
+            ) : (
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                isDark ? "bg-emerald-500/15" : "bg-emerald-500/10"
+              }`}>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            )}
+
+            {/* Notification Text - Guaranteed Maximum Readability */}
+            <div className="flex items-center gap-2.5">
+              <span className={`text-xs font-serif font-bold tracking-wide ${
+                isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
+              }`}>
+                {notification.message}
+              </span>
+
+              {/* Status Pill Badge */}
+              {notification.badge && (
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                  notification.type === "loading"
+                    ? isDark
+                      ? "bg-amber-950/70 text-amber-300 border border-amber-800/60"
+                      : "bg-[#fef3c7] text-[#92400e] border border-[#fde68a]"
+                    : notification.type === "error"
+                    ? isDark
+                      ? "bg-rose-950/70 text-rose-300 border border-rose-800/60"
+                      : "bg-rose-100 text-rose-800 border border-rose-300"
+                    : notification.badge === "Read" || notification.badge === "Synced"
+                    ? isDark
+                      ? "bg-emerald-950/70 text-emerald-300 border border-emerald-800/60"
+                      : "bg-[#d1fae5] text-[#065f46] border border-[#a7f3d0]"
+                    : notification.badge === "Saved"
+                    ? isDark
+                      ? "bg-amber-950/70 text-amber-300 border border-amber-800/60"
+                      : "bg-[#fef3c7] text-[#92400e] border border-[#fde68a]"
+                    : isDark
+                    ? "bg-[#25211c] text-[#a89d8f] border border-[#38332c]"
+                    : "bg-[#f4ece1] text-[#786b59] border border-[#e2d6c3]"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    notification.type === "loading"
+                      ? "bg-amber-500 animate-pulse"
+                      : notification.type === "error"
+                      ? "bg-rose-500"
+                      : notification.badge === "Read" || notification.badge === "Synced"
+                      ? "bg-emerald-500"
+                      : notification.badge === "Saved"
+                      ? "bg-amber-500"
+                      : "bg-stone-400"
+                  }`} />
+                  <span>{notification.badge}</span>
+                </span>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
