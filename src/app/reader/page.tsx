@@ -476,6 +476,11 @@ export default function ReaderDashboard() {
     toastTimeoutRef.current = setTimeout(() => setNotification(null), 3200);
   };
 
+  // Real-time Metrics
+  const unreadTotal = articles.filter(a => a.unread).length;
+  const savedArticlesList = articles.filter(a => a.saved);
+  const savedTotal = savedArticlesList.length;
+
   // Persistent User Actions
   const toggleReadStatus = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -540,23 +545,33 @@ export default function ReaderDashboard() {
     triggerToast(nextState ? "Essay Saved" : "Essay Removed");
   };
 
-  const markAllRead = async () => {
-    setArticles(prev => prev.map(a => ({ ...a, unread: false })));
+  const toggleMarkAllRead = async () => {
+    const shouldMarkUnread = unreadTotal === 0;
+
+    setArticles(prev => prev.map(a => ({ ...a, unread: shouldMarkUnread })));
     setReadingProgress(prev => {
       const updated = { ...prev };
       articles.forEach(a => {
-        updated[a.id] = 100;
+        updated[a.id] = shouldMarkUnread ? 0 : 100;
       });
       try { localStorage.setItem("sw_reading_progress", JSON.stringify(updated)); } catch {}
       return updated;
     });
+
     for (const a of articles) {
-      if (a.unread) {
-        await updateArticleState(a.id, { unread: false });
+      if (a.unread !== shouldMarkUnread) {
+        await updateArticleState(a.id, { unread: shouldMarkUnread });
       }
     }
-    triggerToast("All essays marked as 100% read");
+
+    if (shouldMarkUnread) {
+      triggerToast("All essays marked as unread");
+    } else {
+      triggerToast("All essays marked as 100% read");
+    }
   };
+
+  const markAllRead = toggleMarkAllRead;
 
   // Manual Background Refresh Trigger
   const handleManualRefresh = async () => {
@@ -902,11 +917,6 @@ export default function ReaderDashboard() {
     }
     return true;
   });
-
-  // Metrics
-  const unreadTotal = articles.filter(a => a.unread).length;
-  const savedArticlesList = articles.filter(a => a.saved);
-  const savedTotal = savedArticlesList.length;
 
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden select-none transition-colors duration-200 ${
@@ -1526,14 +1536,20 @@ export default function ReaderDashboard() {
                       </button>
 
                       <button
-                        onClick={markAllRead}
-                        className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-colors shadow-xs ${
-                          isDark
+                        onClick={toggleMarkAllRead}
+                        className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-all shadow-xs flex items-center gap-1.5 active:scale-95 ${
+                          unreadTotal === 0
+                            ? isDark
+                              ? "border-emerald-800/60 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300"
+                              : "border-[#a7f3d0] bg-[#d1fae5] hover:bg-[#a7f3d0]/80 text-[#065f46]"
+                            : isDark
                             ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
                             : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
                         }`}
+                        title={unreadTotal === 0 ? "Click to mark all as unread" : "Click to mark all as read"}
                       >
-                        Mark all read
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${unreadTotal === 0 ? "text-emerald-500 fill-emerald-500/20" : isDark ? "text-amber-400" : "text-[#b45309]"}`} />
+                        <span>{unreadTotal === 0 ? "Mark all unread" : "Mark all read"}</span>
                       </button>
                     </div>
                   )}
