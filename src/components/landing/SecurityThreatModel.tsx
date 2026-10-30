@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ShieldCheck, ShieldAlert, Lock, CheckCircle2, AlertOctagon, Terminal, X } from "lucide-react";
+import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 
 interface SecurityThreatModelProps {
@@ -103,9 +104,14 @@ export default function SecurityThreatModel({
       {/* 2-Column: Privacy Boundary + Interactive SSRF Simulator */}
       <div className="grid lg:grid-cols-2 gap-6 sm:gap-8 items-start">
         {/* Column 1: What is Stored vs Never Stored */}
-        <div className={`rounded-2xl border p-6 sm:p-8 space-y-6 shadow-xs transition-colors duration-200 ${
-          isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fffdfa] border-[#e8dfd3] text-[#1f1c19]"
-        }`}>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, duration: 0.35, ease: "easeOut" }}
+          className={`rounded-2xl border p-6 sm:p-8 space-y-6 shadow-xs transition-colors duration-200 ${
+            isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fffdfa] border-[#e8dfd3] text-[#1f1c19]"
+          }`}
+        >
           <h3 className={`text-lg sm:text-xl font-serif font-bold pb-4 border-b ${
             isDark ? "border-[#2d2924] text-[#f5efe6]" : "border-[#f0e6d6] text-[#1f1c19]"
           }`}>
@@ -139,10 +145,15 @@ export default function SecurityThreatModel({
           <div className={`pt-4 border-t ${isDark ? "border-[#2d2924] text-[#a89d8f]" : "border-[#f0e6d6] text-[#8c7e6c]"} text-xs font-mono`}>
             Verified by design: The server cannot reconstruct a single individual's full identity.
           </div>
-        </div>
+        </motion.div>
 
         {/* Column 2: Interactive SSRF Simulator for Judges */}
-        <div className="rounded-2xl bg-[#1c1917] text-[#fbf7ee] p-6 sm:p-8 space-y-6 shadow-xl border border-[#3e3834]">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.35, ease: "easeOut" }}
+          className="rounded-2xl bg-[#1c1917] text-[#fbf7ee] p-6 sm:p-8 space-y-6 shadow-xl border border-[#3e3834]"
+        >
           <div className="flex items-center justify-between pb-4 border-b border-[#332e29]">
             <div className="flex items-center gap-2">
               <Terminal className="w-5 h-5 text-[#fde68a]" />
@@ -228,26 +239,44 @@ export default function SecurityThreatModel({
               Preset: danluu.com (Public Feed)
             </button>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
 
   if (isModal) {
     return (
-      <div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto cursor-pointer"
         onClick={onClose}
       >
-        <div
+        <motion.div
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-5xl rounded-3xl border shadow-2xl p-6 sm:p-10 my-auto max-h-[92vh] overflow-y-auto transition-colors duration-200 ${
-            isDark ? "bg-[#141210] border-[#38332c] text-[#f5efe6]" : "bg-[#fbf8f2] border-[#e2d6c3] text-[#1f1c19]"
+          initial={{ opacity: 0, scale: 0.88, y: 35 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 20 }}
+          transition={{
+            type: "spring",
+            damping: 24,
+            stiffness: 320,
+            mass: 0.8
+          }}
+          className={`relative w-full max-w-5xl rounded-3xl border shadow-2xl p-6 sm:p-10 my-auto max-h-[92vh] overflow-y-auto cursor-default transition-colors duration-200 overflow-hidden ${
+            isDark
+              ? "bg-[#141210] border-[#38332c] text-[#f5efe6] shadow-black/80"
+              : "bg-[#fbf8f2] border-[#e2d6c3] text-[#1f1c19] shadow-2xl"
           }`}
         >
+          {/* Subtle Golden Ambient Glow Behind Card */}
+          <div className="absolute top-0 right-0 translate-x-12 -translate-y-12 w-80 h-80 rounded-full bg-[#d97706]/10 blur-3xl pointer-events-none" />
+
           {modalBody}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 

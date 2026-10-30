@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { BookOpen, ShieldCheck, Wifi, Shield, GitBranch } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import SecurityThreatModel from "@/components/landing/SecurityThreatModel";
 
 export default function LandingFooter() {
@@ -89,12 +90,14 @@ export default function LandingFooter() {
       </div>
 
       {/* Security & Privacy by Design Modal Popup */}
-      {isSecurityModalOpen && (
-        <SecurityThreatModel
-          isModal={true}
-          onClose={() => setIsSecurityModalOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {isSecurityModalOpen && (
+          <SecurityThreatModel
+            isModal={true}
+            onClose={() => setIsSecurityModalOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </footer>
   );
 }
