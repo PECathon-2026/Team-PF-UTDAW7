@@ -3,7 +3,6 @@
 import PerspectiveTunnelHero from "@/components/ui/perspective-tunnel-hero";
 import WebComparison from "@/components/landing/WebComparison";
 import CorePillars from "@/components/landing/CorePillars";
-import SecurityThreatModel from "@/components/landing/SecurityThreatModel";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -24,9 +23,6 @@ export default function Home() {
 
       {/* Technical Architecture & Pillars */}
       <CorePillars />
-
-      {/* Rubric Security & Threat Model with Live Inspector */}
-      <SecurityThreatModel />
 
       {/* Footer & Final Call to Action */}
       <LandingFooter />
