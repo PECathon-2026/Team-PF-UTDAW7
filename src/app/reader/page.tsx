@@ -335,8 +335,18 @@ export default function ReaderDashboard() {
 
   // Resize Sidebar Event Listeners
   useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsSidebarCollapsed(true);
+    }
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizingRef.current) return;
+      if (e.clientX < 100) {
+        setIsSidebarCollapsed(true);
+        isResizingRef.current = false;
+        return;
+      }
+      setIsSidebarCollapsed(false);
       const newWidth = Math.min(Math.max(e.clientX, 200), 420);
       setSidebarWidth(newWidth);
     };
@@ -671,6 +681,17 @@ export default function ReaderDashboard() {
           <div className="h-4 w-[1px] bg-[#e8dfd1] hidden sm:block" />
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSidebarCollapsed(prev => !prev)}
+              className="p-1.5 rounded-lg text-[#786b59] hover:text-[#b45309] hover:bg-[#f4ece1] transition-colors"
+              title={isSidebarCollapsed ? "Open sidebar" : "Collapse sidebar"}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="w-4 h-4" />
+              ) : (
+                <PanelLeftClose className="w-4 h-4" />
+              )}
+            </button>
             <div className="w-7 h-7 rounded-lg bg-[#b45309] text-white flex items-center justify-center shadow-xs">
               <Feather className="w-4 h-4" />
             </div>
@@ -786,9 +807,15 @@ export default function ReaderDashboard() {
         
         {/* 1. LEFT SIDEBAR (Resizable & Collapsible) */}
         <aside
-          style={{ width: isSidebarCollapsed ? 0 : `${sidebarWidth}px` }}
-          className={`border-r border-[#e8dfd1] bg-[#fbf8f2] flex flex-col justify-between p-4 overflow-y-auto transition-all duration-200 relative flex-shrink-0 ${
-            isSidebarCollapsed ? "p-0 border-r-0 overflow-hidden" : ""
+          style={{
+            width: isSidebarCollapsed ? 0 : `${sidebarWidth}px`,
+            minWidth: isSidebarCollapsed ? 0 : undefined,
+            maxWidth: isSidebarCollapsed ? 0 : undefined,
+          }}
+          className={`bg-[#fbf8f2] flex flex-col justify-between transition-all duration-200 relative flex-shrink-0 ${
+            isSidebarCollapsed
+              ? "w-0 min-w-0 max-w-0 p-0 m-0 border-0 overflow-hidden invisible pointer-events-none"
+              : "p-4 border-r border-[#e8dfd1] overflow-y-auto"
           }`}
         >
           <div className="space-y-6">
@@ -985,24 +1012,26 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Draggable Resize Handle */}
-          <div
-            onMouseDown={() => {
-              isResizingRef.current = true;
-              document.body.style.cursor = "col-resize";
-              document.body.style.userSelect = "none";
-            }}
-            className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-[#b45309]/30 transition-colors group z-20 flex items-center justify-center"
-            title="Drag to resize sidebar"
-          >
-            <div className="w-0.5 h-8 bg-[#d6caba] group-hover:bg-[#b45309] rounded-full" />
-          </div>
+          {!isSidebarCollapsed && (
+            <div
+              onMouseDown={() => {
+                isResizingRef.current = true;
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+              }}
+              className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-[#b45309]/30 transition-colors group z-20 flex items-center justify-center"
+              title="Drag to resize sidebar"
+            >
+              <div className="w-0.5 h-8 bg-[#d6caba] group-hover:bg-[#b45309] rounded-full" />
+            </div>
+          )}
         </aside>
 
         {/* Floating Expand Button when Sidebar is Collapsed */}
         {isSidebarCollapsed && (
           <button
             onClick={() => setIsSidebarCollapsed(false)}
-            className="hidden lg:flex absolute left-4 top-4 z-30 p-2 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center justify-center group"
+            className="flex absolute left-4 top-4 z-30 p-2.5 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center justify-center group"
             title="Expand sidebar"
           >
             <PanelLeftOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform" />
