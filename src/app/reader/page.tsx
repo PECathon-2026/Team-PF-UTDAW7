@@ -1307,14 +1307,15 @@ export default function ReaderDashboard() {
               </span>
               <button
                 onClick={() => setIsSidebarCollapsed(true)}
-                className={`p-1 rounded-md transition-colors ${
+                className={`p-1 rounded-md transition-colors relative overflow-hidden ${
                   isDark
                     ? "text-[#a89d8f] hover:text-[#fbbf24] hover:bg-[#25211c]"
                     : "text-[#8c7e6c] hover:text-[#b45309] hover:bg-[#ebdcc8]/50"
                 }`}
                 title="Collapse sidebar"
               >
-                <PanelLeftClose className="w-3.5 h-3.5" />
+                <BlogCardSpotlight isDark={isDark} variant="yellow" size={50} />
+                <PanelLeftClose className="w-3.5 h-3.5 relative z-10" />
               </button>
             </div>
 
@@ -1322,16 +1323,17 @@ export default function ReaderDashboard() {
             <div className="space-y-1 text-xs">
               <button
                 onClick={() => { setViewMode("timeline"); setActiveTab("all"); setSelectedBlogId(null); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors relative overflow-hidden ${
                   viewMode === "timeline" && activeTab === "all" && !selectedBlogId
                     ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                     : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
-                <span className="flex items-center gap-2.5">
+                <BlogCardSpotlight isDark={isDark} variant="yellow" size={85} />
+                <span className="flex items-center gap-2.5 relative z-10">
                   <BookOpen className="w-4 h-4" /> Timeline
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold relative z-10 ${
                   isDark ? "bg-[#2d2924] text-amber-200" : "bg-[#ebdcc8] text-[#78350f]"
                 }`}>
                   {articles.length}
@@ -1340,16 +1342,17 @@ export default function ReaderDashboard() {
 
               <button
                 onClick={() => { setViewMode("timeline"); setActiveTab("discover"); setSelectedBlogId(null); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors relative overflow-hidden ${
                   viewMode === "timeline" && activeTab === "discover"
                     ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                     : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
-                <span className="flex items-center gap-2.5">
+                <BlogCardSpotlight isDark={isDark} variant="yellow" size={85} />
+                <span className="flex items-center gap-2.5 relative z-10">
                   <Sparkles className="w-4 h-4 text-[#b45309]" /> Discovery Hub
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold relative z-10 ${
                   isDark ? "bg-amber-950/60 text-amber-300" : "bg-[#fef3c7] text-[#92400e]"
                 }`}>
                   Explore
@@ -1358,16 +1361,17 @@ export default function ReaderDashboard() {
 
               <button
                 onClick={() => { setViewMode("timeline"); setActiveTab("unread"); setSelectedBlogId(null); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors relative overflow-hidden ${
                   viewMode === "timeline" && activeTab === "unread"
                     ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                     : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
-                <span className="flex items-center gap-2.5">
+                <BlogCardSpotlight isDark={isDark} variant="yellow" size={85} />
+                <span className="flex items-center gap-2.5 relative z-10">
                   <span className="w-2 h-2 rounded-full bg-[#b45309]" /> Unread
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold relative z-10 ${
                   isDark ? "bg-amber-950/60 text-amber-300" : "bg-[#fef3c7] text-[#92400e]"
                 }`}>
                   {unreadTotal}
@@ -1376,16 +1380,17 @@ export default function ReaderDashboard() {
 
               <button
                 onClick={() => { setViewMode("timeline"); setActiveTab("read"); setSelectedBlogId(null); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors relative overflow-hidden ${
                   viewMode === "timeline" && activeTab === "read"
                     ? isDark ? "bg-[#25211c] text-emerald-400 shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-emerald-700 shadow-xs border border-[#e2d6c3]"
                     : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
-                <span className="flex items-center gap-2.5">
+                <BlogCardSpotlight isDark={isDark} variant="yellow" size={85} />
+                <span className="flex items-center gap-2.5 relative z-10">
                   <CheckCircle2 className={`w-4 h-4 ${viewMode === "timeline" && activeTab === "read" ? "text-emerald-500" : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`} /> Read
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold relative z-10 ${
                   isDark ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/40" : "bg-[#d1fae5] text-[#065f46]"
                 }`}>
                   {articles.length - unreadTotal}
@@ -1394,13 +1399,14 @@ export default function ReaderDashboard() {
 
               <button
                 onClick={() => { setViewMode("graph"); setSelectedBlogId(null); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-serif font-medium transition-colors relative overflow-hidden ${
                   viewMode === "graph"
                     ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
                     : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                 }`}
               >
-                <span className="flex items-center gap-2.5">
+                <BlogCardSpotlight isDark={isDark} variant="yellow" size={85} />
+                <span className="flex items-center gap-2.5 relative z-10">
                   <Orbit className={`w-4 h-4 ${viewMode === "graph" ? "text-[#b45309] animate-spin" : "text-[#b45309]"}`} style={{ animationDuration: "16s" }} />
                   <span>Constellation</span>
                 </span>
@@ -1420,30 +1426,33 @@ export default function ReaderDashboard() {
                   {/* OPML Export */}
                   <button
                     onClick={handleExportOpml}
-                    className="p-1 rounded text-[#786b59] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors"
+                    className="p-1 rounded text-[#786b59] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors relative overflow-hidden"
                     title="Export subscriptions to OPML (.xml)"
                   >
-                    <Download className="w-3 h-3" />
+                    <BlogCardSpotlight isDark={isDark} variant="yellow" size={40} />
+                    <Download className="w-3 h-3 relative z-10" />
                   </button>
 
                   {/* OPML Import */}
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-1 rounded text-[#786b59] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors"
+                    className="p-1 rounded text-[#786b59] hover:text-[#b45309] hover:bg-[#ebdcc8]/50 transition-colors relative overflow-hidden"
                     title="Import OPML feed list"
                   >
-                    <Upload className="w-3 h-3" />
+                    <BlogCardSpotlight isDark={isDark} variant="yellow" size={40} />
+                    <Upload className="w-3 h-3 relative z-10" />
                   </button>
                   
                   {/* Category Filter Dropdown */}
                   <div className="relative">
                     <button
                       onClick={() => setIsSubDropdownOpen(prev => !prev)}
-                      className="flex items-center gap-1 text-[11px] font-mono text-[#786b59] hover:text-[#b45309] px-1.5 py-0.5 rounded-md hover:bg-[#ebdcc8]/50 transition-colors"
+                      className="flex items-center gap-1 text-[11px] font-mono text-[#786b59] hover:text-[#b45309] px-1.5 py-0.5 rounded-md hover:bg-[#ebdcc8]/50 transition-colors relative overflow-hidden"
                     >
-                      <Filter className="w-3 h-3 text-[#b45309]" />
-                      <span className="capitalize">{categoryFilter}</span>
-                      <ChevronDown className="w-2.5 h-2.5" />
+                      <BlogCardSpotlight isDark={isDark} variant="yellow" size={60} />
+                      <Filter className="w-3 h-3 text-[#b45309] relative z-10" />
+                      <span className="capitalize relative z-10">{categoryFilter}</span>
+                      <ChevronDown className="w-2.5 h-2.5 relative z-10" />
                     </button>
 
                     <AnimatePresence>
@@ -1487,13 +1496,14 @@ export default function ReaderDashboard() {
                       setActiveTab("all");
                       setViewMode("timeline");
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-serif transition-colors group cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-serif transition-colors group cursor-pointer relative overflow-hidden ${
                       selectedBlogId === sub.id
-                        ? "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
-                        : "text-[#574e44] hover:bg-[#f3ecdf]/80"
+                        ? isDark ? "bg-[#25211c] text-[#fbbf24] shadow-xs border border-[#3d372f]" : "bg-[#fdfaf5] text-[#b45309] shadow-xs border border-[#e2d6c3]"
+                        : isDark ? "text-[#a89d8f] hover:bg-[#201d19]" : "text-[#574e44] hover:bg-[#f3ecdf]/80"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate flex-1 mr-2">
+                    <BlogCardSpotlight isDark={isDark} variant="yellow" size={85} />
+                    <div className="flex items-center gap-2.5 truncate flex-1 mr-2 relative z-10">
                       <span
                         className={`w-5 h-5 rounded-md border flex items-center justify-center font-mono font-bold text-[10px] flex-shrink-0 ${sub.color}`}
                       >
@@ -1502,9 +1512,9 @@ export default function ReaderDashboard() {
                       <span className="truncate">{sub.name}</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-shrink-0 relative z-10">
                       {sub.unreadCount > 0 && (
-                        <span className="text-[10px] font-mono text-[#8c7e6c]">
+                        <span className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>
                           {sub.unreadCount}
                         </span>
                       )}
@@ -1524,22 +1534,25 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Zero Surveillance Philosophy Card */}
-          <div className={`p-3.5 rounded-2xl border space-y-2 mt-4 transition-colors ${
+          <div className={`p-3.5 rounded-2xl border space-y-2 mt-4 transition-colors relative overflow-hidden ${
             isDark
               ? "bg-[#1f1c19] border-[#38332c] text-[#f5efe6]"
               : "bg-[#f2e9db]/70 border-[#e2d6c3] text-[#78350f]"
           }`}>
-            <div className={`flex items-center gap-2 text-xs font-serif font-bold ${
-              isDark ? "text-amber-400" : "text-[#78350f]"
-            }`}>
-              <ShieldCheck className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-[#b45309]"}`} />
-              <span>Zero Surveillance</span>
+            <BlogCardSpotlight isDark={isDark} variant="yellow" size={110} />
+            <div className="relative z-10 space-y-2">
+              <div className={`flex items-center gap-2 text-xs font-serif font-bold ${
+                isDark ? "text-amber-400" : "text-[#78350f]"
+              }`}>
+                <ShieldCheck className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-[#b45309]"}`} />
+                <span>Zero Surveillance</span>
+              </div>
+              <p className={`text-[11px] font-serif italic leading-snug ${
+                isDark ? "text-[#a89d8f]" : "text-[#786b59]"
+              }`}>
+                "No corporate tracking. Your reading sanctuary remains completely offline and private."
+              </p>
             </div>
-            <p className={`text-[11px] font-serif italic leading-snug ${
-              isDark ? "text-[#a89d8f]" : "text-[#786b59]"
-            }`}>
-              "No corporate tracking. Your reading sanctuary remains completely offline and private."
-            </p>
           </div>
 
           {/* Draggable Resize Handle */}
@@ -1562,10 +1575,11 @@ export default function ReaderDashboard() {
         {isSidebarCollapsed && (
           <button
             onClick={() => setIsSidebarCollapsed(false)}
-            className="flex absolute left-4 top-4 z-30 p-2.5 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center justify-center group"
+            className="flex absolute left-4 top-4 z-30 p-2.5 rounded-xl bg-[#fdfaf5] border border-[#e2d6c3] shadow-md text-[#574e44] hover:text-[#b45309] hover:bg-[#f4ece1] transition-all items-center justify-center group relative overflow-hidden"
             title="Expand sidebar"
           >
-            <PanelLeftOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform" />
+            <BlogCardSpotlight isDark={isDark} variant="yellow" size={60} />
+            <PanelLeftOpen className="w-4 h-4 text-[#b45309] group-hover:scale-110 transition-transform relative z-10" />
           </button>
         )}
 
@@ -1627,20 +1641,21 @@ export default function ReaderDashboard() {
                       <button
                         onClick={handleManualRefresh}
                         disabled={isRefreshing}
-                        className={`text-xs font-serif font-medium px-3 py-1.5 rounded-xl border transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 ${
+                        className={`text-xs font-serif font-medium px-3 py-1.5 rounded-xl border transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 relative overflow-hidden ${
                           isDark
                             ? "border-[#2d2924] bg-[#1d1a17] hover:bg-[#25211c] text-[#f5efe6]"
                             : "border-[#e2d6c3] bg-[#fdfaf5] hover:bg-[#f3ecdf] text-[#574e44]"
                         }`}
                         title="Sync and check feeds for fresh essays"
                       >
-                        <RefreshCw className={`w-3 h-3 text-[#b45309] ${isRefreshing ? "animate-spin" : ""}`} />
-                        <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
+                        <BlogCardSpotlight isDark={isDark} variant="orange" size={60} />
+                        <RefreshCw className={`w-3 h-3 text-[#b45309] relative z-10 ${isRefreshing ? "animate-spin" : ""}`} />
+                        <span className="relative z-10">{isRefreshing ? "Syncing..." : "Refresh"}</span>
                       </button>
 
                       <button
                         onClick={toggleMarkAllRead}
-                        className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-all shadow-xs flex items-center gap-1.5 active:scale-95 ${
+                        className={`text-xs font-serif font-medium px-3.5 py-1.5 rounded-xl border transition-all shadow-xs flex items-center gap-1.5 active:scale-95 relative overflow-hidden ${
                           unreadTotal === 0
                             ? isDark
                               ? "border-emerald-800/60 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300"
@@ -1651,8 +1666,9 @@ export default function ReaderDashboard() {
                         }`}
                         title={unreadTotal === 0 ? "Click to mark all as unread" : "Click to mark all as read"}
                       >
-                        <CheckCircle2 className={`w-3.5 h-3.5 ${unreadTotal === 0 ? "text-emerald-500 fill-emerald-500/20" : isDark ? "text-amber-400" : "text-[#b45309]"}`} />
-                        <span>{unreadTotal === 0 ? "Mark all unread" : "Mark all read"}</span>
+                        <BlogCardSpotlight isDark={isDark} variant="orange" size={60} />
+                        <CheckCircle2 className={`w-3.5 h-3.5 relative z-10 ${unreadTotal === 0 ? "text-emerald-500 fill-emerald-500/20" : isDark ? "text-amber-400" : "text-[#b45309]"}`} />
+                        <span className="relative z-10">{unreadTotal === 0 ? "Mark all unread" : "Mark all read"}</span>
                       </button>
                     </div>
                   )}
@@ -1686,13 +1702,14 @@ export default function ReaderDashboard() {
                       <motion.article
                         key={article.id}
                         onClick={() => handleSelectArticle(article)}
-                        className={`group p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start ${
+                        className={`group p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 items-start relative overflow-hidden ${
                           isDark
                             ? "border-[#2d2924] hover:border-[#fbbf24]/40 hover:shadow-lg bg-[#181614] text-[#f5efe6]"
                             : "border-[#e8dfd1] hover:border-[#b45309]/40 hover:shadow-md bg-[#fdfaf5] text-[#1f1c19]"
                         }`}
                       >
-                        <div className="flex-1 space-y-2.5">
+                        <BlogCardSpotlight isDark={isDark} variant="orange" size={170} />
+                        <div className="flex-1 space-y-2.5 relative z-10">
                           
                           {/* Metadata Tag */}
                           <div className="flex items-center gap-2 text-xs">
@@ -1791,7 +1808,7 @@ export default function ReaderDashboard() {
                         </div>
 
                         {/* Editorial Thumbnail */}
-                        <div className={`w-full sm:w-40 h-28 rounded-xl overflow-hidden border flex-shrink-0 shadow-xs ${
+                        <div className={`w-full sm:w-40 h-28 rounded-xl overflow-hidden border flex-shrink-0 shadow-xs relative z-10 ${
                           isDark ? "border-[#2d2924] bg-[#1c1a17]" : "border-[#e8dfd1] bg-[#f4ece1]"
                         }`}>
                           <img
