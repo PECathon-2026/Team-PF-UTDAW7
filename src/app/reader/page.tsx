@@ -63,7 +63,16 @@ import {
   StoredSubscription,
   syncAnonymousDiscoveryIfOptedIn,
 } from "@/lib/client/storage";
-import { idbUpdateArticle } from "@/lib/client/idb";
+import {
+  idbUpdateArticle,
+  idbRecordReadingActivity,
+  idbRemoveReadingActivity,
+  idbGetReadingActivities,
+  idbSeedInitialReadingActivitiesIfEmpty,
+  ReadingActivityEvent,
+} from "@/lib/client/idb";
+import WeeklyActivityCard from "@/components/reader/WeeklyActivityCard";
+import BlogCardSpotlight from "@/components/reader/BlogCardSpotlight";
 import { refreshAllFeeds } from "@/lib/client/feedSync";
 import {
   exportToOpml,
@@ -283,6 +292,9 @@ export default function ReaderDashboard() {
   const [notification, setNotification] = useState<{ message: string; badge?: string; type?: "info" | "success" | "loading" | "error" } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Dynamic Reading Activity Tracker State
+  const [readingActivities, setReadingActivities] = useState<ReadingActivityEvent[]>([]);
+
   // Loading & Sync States
   const [isAddingFeed, setIsAddingFeed] = useState(false);
   const [isExtractingArticle, setIsExtractingArticle] = useState(false);
@@ -358,6 +370,12 @@ export default function ReaderDashboard() {
       if (!isMounted) return;
       setSubscriptions(storedSubs as any);
       setArticles(storedArts as any);
+
+      // Seed initial reading activities if empty and load all recorded activities
+      await idbSeedInitialReadingActivitiesIfEmpty(storedArts as any);
+      const loadedActivities = await idbGetReadingActivities();
+      if (!isMounted) return;
+      setReadingActivities(loadedActivities);
 
       if (typeof window !== "undefined" && window.location.pathname.includes("/discover")) {
         setActiveTab("discover");
@@ -494,11 +512,35 @@ export default function ReaderDashboard() {
       return updated;
     });
     await updateArticleState(id, { unread: nextUnread });
-    triggerToast(nextUnread ? "Marked as unread" : "Marked as read (100% read)");
+
+    if (!nextUnread) {
+      // Marked as read (100% read)
+      const readMins = parseInt(target.readTime) || 5;
+      const act = await idbRecordReadingActivity({
+        articleId: id,
+        title: target.title || "Article",
+        feedUrl: target.url || target.blogId || "",
+        readTimeMinutes: readMins,
+      });
+      setReadingActivities(prev => {
+        const exists = prev.some(p => p.articleId === id);
+        if (exists) {
+          return prev.map(p => (p.articleId === id ? act : p));
+        }
+        return [act, ...prev];
+      });
+      triggerToast("Marked as read (100% read)");
+    } else {
+      // Marked as unread
+      await idbRemoveReadingActivity(id);
+      setReadingActivities(prev => prev.filter(p => p.articleId !== id));
+      triggerToast("Marked as unread");
+    }
   };
 
   const markAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const target = articles.find(a => a.id === id);
     setArticles(prev => prev.map(a => (a.id === id ? { ...a, unread: false } : a)));
     setReadingProgress(prev => {
       const updated = { ...prev, [id]: 100 };
@@ -506,6 +548,22 @@ export default function ReaderDashboard() {
       return updated;
     });
     await updateArticleState(id, { unread: false });
+    if (target) {
+      const readMins = parseInt(target.readTime) || 5;
+      const act = await idbRecordReadingActivity({
+        articleId: id,
+        title: target.title || "Article",
+        feedUrl: target.url || target.blogId || "",
+        readTimeMinutes: readMins,
+      });
+      setReadingActivities(prev => {
+        const exists = prev.some(p => p.articleId === id);
+        if (exists) {
+          return prev.map(p => (p.articleId === id ? act : p));
+        }
+        return [act, ...prev];
+      });
+    }
   };
 
   // Reading Scroll Progress Listener
@@ -526,6 +584,21 @@ export default function ReaderDashboard() {
     if (pct >= 90 && selectedArticle.unread) {
       setArticles(prev => prev.map(a => (a.id === selectedArticle.id ? { ...a, unread: false } : a)));
       updateArticleState(selectedArticle.id, { unread: false });
+      const readMins = parseInt(selectedArticle.readTime) || 5;
+      idbRecordReadingActivity({
+        articleId: selectedArticle.id,
+        title: selectedArticle.title || "Article",
+        feedUrl: selectedArticle.url || selectedArticle.blogId || "",
+        readTimeMinutes: readMins,
+      }).then((act) => {
+        setReadingActivities(prev => {
+          const exists = prev.some(p => p.articleId === selectedArticle.id);
+          if (exists) {
+            return prev.map(p => (p.articleId === selectedArticle.id ? act : p));
+          }
+          return [act, ...prev];
+        });
+      });
     }
   };
 
@@ -558,15 +631,30 @@ export default function ReaderDashboard() {
       return updated;
     });
 
-    for (const a of articles) {
-      if (a.unread !== shouldMarkUnread) {
-        await updateArticleState(a.id, { unread: shouldMarkUnread });
-      }
-    }
-
     if (shouldMarkUnread) {
+      for (const a of articles) {
+        if (!a.unread) {
+          await updateArticleState(a.id, { unread: true });
+          await idbRemoveReadingActivity(a.id);
+        }
+      }
+      setReadingActivities([]);
       triggerToast("All essays marked as unread");
     } else {
+      for (const a of articles) {
+        if (a.unread) {
+          await updateArticleState(a.id, { unread: false });
+          const readMins = parseInt(a.readTime) || 5;
+          await idbRecordReadingActivity({
+            articleId: a.id,
+            title: a.title,
+            feedUrl: a.url || a.blogId || "",
+            readTimeMinutes: readMins,
+          });
+        }
+      }
+      const refreshed = await idbGetReadingActivities();
+      setReadingActivities(refreshed);
       triggerToast("All essays marked as 100% read");
     }
   };
@@ -864,6 +952,21 @@ export default function ReaderDashboard() {
     if (pct >= 90 && selectedArticle.unread) {
       setArticles(prev => prev.map(a => (a.id === selectedArticle.id ? { ...a, unread: false } : a)));
       updateArticleState(selectedArticle.id, { unread: false });
+      const readMins = parseInt(selectedArticle.readTime) || 5;
+      idbRecordReadingActivity({
+        articleId: selectedArticle.id,
+        title: selectedArticle.title || "Article",
+        feedUrl: selectedArticle.url || selectedArticle.blogId || "",
+        readTimeMinutes: readMins,
+      }).then((act) => {
+        setReadingActivities(prev => {
+          const exists = prev.some(p => p.articleId === selectedArticle.id);
+          if (exists) {
+            return prev.map(p => (p.articleId === selectedArticle.id ? act : p));
+          }
+          return [act, ...prev];
+        });
+      });
     }
   }, [activeSpeechParagraph, isListenModeActive, selectedArticle, currentArticleParagraphs.length]);
 
@@ -1775,61 +1878,12 @@ export default function ReaderDashboard() {
             </button>
           </div>
 
-          {/* Weekly Reading Chart Card */}
-          <div className={`rounded-2xl p-5 shadow-xs space-y-4 border transition-colors ${
-            isDark ? "bg-[#181614] border-[#2d2924] text-[#f5efe6]" : "bg-[#fdfaf5] border-[#e8dfd1] text-[#1f1c19]"
-          }`}>
-            <h4 className={`font-serif font-bold text-sm ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>Weekly Activity</h4>
-            
-            <div className={`grid grid-cols-3 text-center border-b pb-3 font-serif ${
-              isDark ? "border-[#2d2924]" : "border-[#e8dfd1]"
-            }`}>
-              <div>
-                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>12</div>
-                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>essays read</div>
-              </div>
-              <div>
-                <div className={`text-xl font-bold ${isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"}`}>{savedTotal}</div>
-                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>saved</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-[#b45309]">3h 24m</div>
-                <div className={`text-[10px] font-mono ${isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"}`}>deep time</div>
-              </div>
-            </div>
-
-            {/* Weekly Bars */}
-            <div className="flex items-end justify-between h-16 pt-2 px-1">
-              {[
-                { day: "M", h: "h-8", active: false },
-                { day: "T", h: "h-6", active: false },
-                { day: "W", h: "h-11", active: false },
-                { day: "T", h: "h-7", active: false },
-                { day: "F", h: "h-14", active: true },
-                { day: "S", h: "h-9", active: false },
-                { day: "S", h: "h-8", active: false }
-              ].map((bar, i) => (
-                <div key={i} className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`w-4 rounded-t transition-all ${
-                      bar.active
-                        ? "bg-[#b45309] shadow-xs"
-                        : isDark
-                        ? "bg-[#2d2924] hover:bg-[#38332c]"
-                        : "bg-[#e2d6c3] hover:bg-[#d6caba]"
-                    } ${bar.h}`}
-                  />
-                  <span className={`text-[9px] font-mono ${
-                    bar.active
-                      ? "font-bold text-[#b45309]"
-                      : isDark ? "text-[#8c8172]" : "text-[#8c7e6c]"
-                  }`}>
-                    {bar.day}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Real Dynamic Weekly Activity Telemetry Card */}
+          <WeeklyActivityCard
+            activities={readingActivities}
+            savedTotal={savedTotal}
+            isDark={isDark}
+          />
 
           {/* Continue Reading Cards */}
           <div className="space-y-3">
@@ -1843,15 +1897,16 @@ export default function ReaderDashboard() {
                 <div
                   key={a.id}
                   onClick={() => handleSelectArticle(a)}
-                  className={`p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all shadow-xs ${
+                  className={`p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all shadow-xs relative overflow-hidden ${
                     isDark
                       ? "bg-[#181614] border-[#2d2924] hover:border-[#fbbf24]/50"
                       : "bg-[#fdfaf5] border-[#e8dfd1] hover:border-[#b45309]/50"
                   }`}
                 >
+                  <BlogCardSpotlight isDark={isDark} />
                   <img
                     src={a.image || getFallbackImage(a.id)}
-                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0 relative z-10"
                     alt=""
                     onError={(e) => {
                       const target = e.currentTarget;
@@ -1861,7 +1916,7 @@ export default function ReaderDashboard() {
                       }
                     }}
                   />
-                  <div className="flex-1 truncate">
+                  <div className="flex-1 truncate relative z-10">
                     <h5 className={`font-serif text-xs font-semibold truncate ${
                       isDark ? "text-[#f5efe6]" : "text-[#1f1c19]"
                     }`}>{a.title}</h5>
@@ -1875,22 +1930,25 @@ export default function ReaderDashboard() {
           </div>
 
           {/* Quote Card */}
-          <div className={`p-4 rounded-2xl border space-y-2 shadow-xs ${
+          <div className={`p-4 rounded-2xl border space-y-2 shadow-xs relative overflow-hidden ${
             isDark ? "bg-[#181614] border-[#2d2924]" : "bg-[#fdfaf5] border-[#e8dfd1]"
           }`}>
-            <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
-            <p className={`font-serif text-xs italic leading-relaxed ${
-              isDark ? "text-[#aba092]" : "text-[#574e44]"
-            }`}>
-              "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
-            </p>
-            <button
-              onClick={() => setActiveTab("discover")}
-              className="text-xs font-serif font-bold text-[#b45309] hover:underline flex items-center gap-1 pt-1"
-            >
-              <span>Explore Discovery Hub</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <BlogCardSpotlight isDark={isDark} />
+            <div className="relative z-10 space-y-2">
+              <span className="text-xs font-mono uppercase tracking-widest text-[#b45309] font-bold">Intentional Web</span>
+              <p className={`font-serif text-xs italic leading-relaxed ${
+                isDark ? "text-[#aba092]" : "text-[#574e44]"
+              }`}>
+                "When you follow blogs directly via RSS, you escape the dopamine casino. You read what you chose, when you chose."
+              </p>
+              <button
+                onClick={() => setActiveTab("discover")}
+                className="text-xs font-serif font-bold text-[#b45309] hover:underline flex items-center gap-1 pt-1"
+              >
+                <span>Explore Discovery Hub</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
         </aside>
@@ -1912,8 +1970,10 @@ export default function ReaderDashboard() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-2xl p-6 space-y-5 cursor-default"
+              className="w-full max-w-md bg-[#fdfaf5] border border-[#e2d6c3] rounded-2xl shadow-2xl p-6 space-y-5 cursor-default relative overflow-hidden"
             >
+              <BlogCardSpotlight isDark={false} size={110} />
+              <div className="relative z-10 space-y-5">
               {/* Modal Header */}
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
@@ -2005,6 +2065,7 @@ export default function ReaderDashboard() {
                   </button>
                 </div>
               </form>
+              </div>
             </motion.div>
           </motion.div>
         )}
